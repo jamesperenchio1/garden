@@ -110,7 +110,7 @@ export function BedDesigner({ bed, onPlantsChange }: BedDesignerProps) {
   useEffect(() => {
     setPlants(bed.plants);
     plantsRef.current = bed.plants;
-  }, [bed.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bed.id, bed.plants]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── resize observer ──────────────────────────────────────────────────────
   useEffect(() => {

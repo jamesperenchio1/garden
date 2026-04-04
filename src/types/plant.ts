@@ -51,3 +51,36 @@ export interface LogEntry {
   healthTags?: HealthTag[];
   createdAt: Date;
 }
+
+// ── Yield tracking ──────────────────────────────────────────────────────────
+
+export type YieldRating = 'none' | 'very_low' | 'low' | 'moderate' | 'high' | 'very_high' | 'exceptional';
+
+export interface YieldRecord {
+  id?: number;
+  plantId: number;
+  amountGrams: number;
+  rating: YieldRating;
+  notes?: string;
+  harvestedAt: Date;
+  createdAt: Date;
+}
+
+export interface YieldReference {
+  id?: number;
+  plantName: string;
+  category: PlantCategory;
+  expectedYieldGramsPerPlant: number;
+  yieldUnit: string;
+  daysToFirstHarvest: number;
+  daysToLastHarvest: number;
+  harvestsPerSeason: number;
+  yieldRatingThresholds: {
+    veryLow: number;
+    low: number;
+    moderate: number;
+    high: number;
+    veryHigh: number;
+  };
+  tips: string;
+}

@@ -11,12 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/db';
 import { usePlantPhotos, usePlantLog } from '@/hooks/use-plants';
-import type { Plant, HealthTag, HealthTagCategory, HealthSeverity } from '@/types/plant';
+import {
+  usePlantYields,
+  useYieldReference,
+  calculateYieldRating,
+  YIELD_RATING_LABELS,
+  YIELD_RATING_COLORS,
+} from '@/hooks/use-yields';
+import type { Plant, HealthTag, HealthTagCategory, HealthSeverity, YieldRating } from '@/types/plant';
 
 export default function PlantDetailPage() {
   const params = useParams();
@@ -38,6 +45,14 @@ export default function PlantDetailPage() {
   // Note dialog state
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteText, setNoteText] = useState('');
+
+  // Yield tracking
+  const { records: yieldRecords, addYield, deleteYield, totalGrams, harvestCount } = usePlantYields(plantId);
+  const { reference: yieldRef } = useYieldReference(plant?.name);
+  const [showYieldDialog, setShowYieldDialog] = useState(false);
+  const [yieldAmount, setYieldAmount] = useState('');
+  const [yieldRatingInput, setYieldRatingInput] = useState<YieldRating>('moderate');
+  const [yieldNotes, setYieldNotes] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -149,6 +164,31 @@ export default function PlantDetailPage() {
     setNoteText('');
     setShowNoteDialog(false);
   };
+
+  const handleAddYield = async () => {
+    const grams = Number(yieldAmount);
+    if (!grams || grams <= 0) return;
+    await addYield({
+      plantId,
+      amountGrams: grams,
+      rating: yieldRatingInput,
+      notes: yieldNotes.trim() || undefined,
+      harvestedAt: new Date(),
+    });
+    await addEntry({
+      plantId,
+      type: 'action',
+      title: `Harvested ${grams}g (${YIELD_RATING_LABELS[yieldRatingInput]})`,
+      content: yieldNotes.trim() || undefined,
+      createdAt: new Date(),
+    });
+    setYieldAmount('');
+    setYieldNotes('');
+    setYieldRatingInput('moderate');
+    setShowYieldDialog(false);
+  };
+
+  const overallRating = calculateYieldRating(totalGrams, yieldRef);
 
   const handleDelete = async () => {
     if (!confirm('Delete this plant and all its photos and logs?')) return;
@@ -388,6 +428,147 @@ export default function PlantDetailPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Yield Tracker */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base">Yield Tracker</CardTitle>
+              <Dialog open={showYieldDialog} onOpenChange={setShowYieldDialog}>
+                <DialogTrigger render={<span />}>
+                  <Button size="sm" variant="outline">
+                    <Scale className="h-4 w-4 mr-1" />
+                    Log
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Log Harvest</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Amount (grams)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="e.g. 250"
+                        value={yieldAmount}
+                        onChange={(e) => setYieldAmount(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Quality Rating</Label>
+                      <Select value={yieldRatingInput} onValueChange={(v) => v && setYieldRatingInput(v as YieldRating)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="very_low">Very Low</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="moderate">Moderate</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="very_high">Very High</SelectItem>
+                          <SelectItem value="exceptional">Exceptional</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Notes (optional)</Label>
+                      <Input
+                        placeholder="e.g. First harvest, nice color"
+                        value={yieldNotes}
+                        onChange={(e) => setYieldNotes(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleAddYield} className="w-full bg-green-600 hover:bg-green-700">
+                      Log Harvest
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {/* Overall yield rating from DB thresholds */}
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <Badge className={`${YIELD_RATING_COLORS[overallRating]} border-0`}>
+                  {YIELD_RATING_LABELS[overallRating]}
+                </Badge>
+                <span className="text-sm font-medium ml-auto">
+                  {totalGrams > 1000
+                    ? `${(totalGrams / 1000).toFixed(1)} kg`
+                    : `${totalGrams} g`}
+                </span>
+              </div>
+
+              {/* Expected yield from DB */}
+              {yieldRef && (
+                <div className="rounded-lg border bg-muted/40 p-2.5 mb-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Expected yield</span>
+                    <span className="font-medium">
+                      {yieldRef.expectedYieldGramsPerPlant > 1000
+                        ? `${(yieldRef.expectedYieldGramsPerPlant / 1000).toFixed(1)} kg`
+                        : `${yieldRef.expectedYieldGramsPerPlant} g`}
+                      /plant
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Days to harvest</span>
+                    <span className="font-medium">{yieldRef.daysToFirstHarvest}–{yieldRef.daysToLastHarvest}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Harvests/season</span>
+                    <span className="font-medium">{yieldRef.harvestsPerSeason}</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-1.5">
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span>Progress</span>
+                      <span>{Math.min(100, Math.round((totalGrams / yieldRef.expectedYieldGramsPerPlant) * 100))}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (totalGrams / yieldRef.expectedYieldGramsPerPlant) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  {yieldRef.tips && (
+                    <p className="text-muted-foreground italic mt-1.5">{yieldRef.tips}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Harvest log */}
+              {yieldRecords.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No harvests logged yet</p>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {yieldRecords.map((rec) => (
+                    <div key={rec.id} className="flex items-center justify-between gap-2 text-xs p-1.5 rounded border">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">{rec.amountGrams}g</span>
+                        <Badge className={`ml-1.5 text-[10px] ${YIELD_RATING_COLORS[rec.rating]} border-0`}>
+                          {YIELD_RATING_LABELS[rec.rating]}
+                        </Badge>
+                        {rec.notes && <p className="text-muted-foreground truncate mt-0.5">{rec.notes}</p>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-muted-foreground">{format(new Date(rec.harvestedAt), 'MM/dd')}</span>
+                        <button onClick={() => rec.id && deleteYield(rec.id)} className="text-muted-foreground hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground mt-2">
+                {harvestCount} harvest{harvestCount !== 1 ? 's' : ''} total
+              </p>
             </CardContent>
           </Card>
 

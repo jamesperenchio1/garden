@@ -8,16 +8,43 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Leaf } from 'lucide-react';
+import { Plus, Search, Leaf, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import type { PlantCategory, GrowingMethod } from '@/types/plant';
+import { useEffect, useState as useStatePlain } from 'react';
+import { db } from '@/lib/db';
+import { YIELD_RATING_LABELS, YIELD_RATING_COLORS, calculateYieldRating } from '@/hooks/use-yields';
+import type { PlantCategory, GrowingMethod, YieldRating, YieldReference } from '@/types/plant';
 
 export default function PlantsPage() {
   const { plants, loading } = usePlants();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
+
+  // Load yield totals and references from DB
+  const [yieldTotals, setYieldTotals] = useStatePlain<Record<number, number>>({});
+  const [yieldRefs, setYieldRefs] = useStatePlain<Record<string, YieldReference>>({});
+
+  useEffect(() => {
+    (async () => {
+      // Get all yield records grouped by plantId
+      const allRecords = await db.yieldRecords.toArray();
+      const totals: Record<number, number> = {};
+      for (const r of allRecords) {
+        totals[r.plantId] = (totals[r.plantId] || 0) + r.amountGrams;
+      }
+      setYieldTotals(totals);
+
+      // Get all references indexed by name
+      const refs = await db.yieldReferences.toArray();
+      const refMap: Record<string, YieldReference> = {};
+      for (const r of refs) {
+        refMap[r.plantName] = r;
+      }
+      setYieldRefs(refMap);
+    })();
+  }, [plants]);
 
   const filtered = plants.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -157,6 +184,24 @@ export default function PlantsPage() {
                     <p className="text-xs text-muted-foreground">
                       Planted {formatDistanceToNow(new Date(plant.plantedDate), { addSuffix: true })}
                     </p>
+                    {/* Yield rating from DB */}
+                    {(() => {
+                      const total = yieldTotals[plant.id!] || 0;
+                      const ref = yieldRefs[plant.name] ?? null;
+                      const rating = calculateYieldRating(total, ref);
+                      if (rating === 'none') return null;
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                          <Badge className={`text-[10px] border-0 ${YIELD_RATING_COLORS[rating]}`}>
+                            {YIELD_RATING_LABELS[rating]}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {total > 1000 ? `${(total / 1000).toFixed(1)}kg` : `${total}g`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {plant.tags?.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
                         {plant.tags.slice(0, 3).map((tag) => (
