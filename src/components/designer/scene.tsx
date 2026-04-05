@@ -40,8 +40,7 @@ function ComponentRenderer({ component, isSelected, onSelect }: ComponentRendere
 
   const sharedProps = {
     selected: isSelected,
-    onClick: (e: any) => {
-      e?.stopPropagation?.();
+    onClick: () => {
       onSelect(component.id);
     },
   };

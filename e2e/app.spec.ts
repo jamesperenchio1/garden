@@ -116,14 +116,14 @@ test.describe('Garden Companion App', () => {
   test('companion planting lookup works', async ({ page }) => {
     await page.goto('/companions');
 
-    // Click on Tomato
-    await page.click('button:text("Tomato")');
+    // Click on Tomato in the plant lookup list
+    await page.locator('button:has-text("Tomato")').first().click();
 
-    // Should show companions for Tomato
-    await expect(page.locator('text=All companions for Tomato')).toBeVisible();
+    // Should show companions list for Tomato
+    await expect(page.locator('text=Companions for Tomato')).toBeVisible();
 
     // Click on Basil to compare
-    await page.click('button:text("Basil")');
+    await page.locator('button:has-text("Basil")').first().click();
 
     // Should show compatibility result (use first match)
     await expect(page.locator('text=Good Companion').first()).toBeVisible();

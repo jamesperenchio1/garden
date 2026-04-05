@@ -57,21 +57,25 @@ export function normaliseConnections(
   raw: unknown
 ): Connection[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((c) => {
+  const out: Connection[] = [];
+  for (const c of raw) {
     if (typeof c === 'string') {
-      return { toId: c, waypoints: [] };
+      out.push({ toId: c, waypoints: [] });
+      continue;
     }
     if (c && typeof c === 'object' && 'toId' in c) {
       const conn = c as Partial<Connection>;
-      return {
+      const next: Connection = {
         toId: String(conn.toId),
         waypoints: Array.isArray(conn.waypoints) ? conn.waypoints : [],
-        lengthOverride:
-          typeof conn.lengthOverride === 'number' ? conn.lengthOverride : undefined,
       };
+      if (typeof conn.lengthOverride === 'number') {
+        next.lengthOverride = conn.lengthOverride;
+      }
+      out.push(next);
     }
-    return null;
-  }).filter((c): c is Connection => c !== null);
+  }
+  return out;
 }
 
 export function normaliseComponent(c: SystemComponent): SystemComponent {
