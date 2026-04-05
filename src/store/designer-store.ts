@@ -14,7 +14,10 @@ const THEME_KEY = 'designer.theme';
 function loadTheme(): DesignerTheme {
   if (typeof window === 'undefined') return 'light';
   const stored = window.localStorage.getItem(THEME_KEY);
-  return stored === 'dark' ? 'dark' : 'light';
+  if (stored === 'dark' || stored === 'light') return stored;
+  // First visit — persist the default so external observers can read it.
+  window.localStorage.setItem(THEME_KEY, 'light');
+  return 'light';
 }
 
 const GRID_UNIT = 0.5;

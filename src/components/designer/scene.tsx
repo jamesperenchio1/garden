@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo, useRef } from 'react';
-import { OrbitControls, Grid } from '@react-three/drei';
+import { OrbitControls, Grid, PivotControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemComponent, Vec3 } from '@/types/system';
@@ -37,6 +37,8 @@ interface ComponentRendererProps {
 
 function ComponentRenderer({ component, isSelected, onSelect }: ComponentRendererProps) {
   const { position, rotation, scale, type } = component;
+  const pivotMatrix = useRef(new THREE.Matrix4());
+  const updateComponent = useDesignerStore((s) => s.updateComponent);
 
   const sharedProps = {
     selected: isSelected,
@@ -60,19 +62,67 @@ function ComponentRenderer({ component, isSelected, onSelect }: ComponentRendere
     fish_tank: <FishTank {...sharedProps} />,
   };
 
-  return (
+  const inner = (
     <group
-      position={[position.x, position.y, position.z]}
-      rotation={[rotation.x, rotation.y, rotation.z]}
       scale={[scale.x, scale.y, scale.z]}
     >
       {componentMap[type] ?? null}
       {isSelected && (
-        /* Faint bounding halo so the user can always see what's selected. */
-        <mesh position={[0, 0.4, 0]}>
-          <sphereGeometry args={[0.55, 16, 16]} />
-          <meshBasicMaterial color="#22c55e" transparent opacity={0.12} />
-        </mesh>
+        <>
+          {/* Wireframe bounding box — always visible, never hidden inside a mesh. */}
+          <mesh position={[0, 0.5, 0]}>
+            <boxGeometry args={[1.35, 1.35, 1.35]} />
+            <meshBasicMaterial color="#22c55e" wireframe transparent opacity={0.9} />
+          </mesh>
+          {/* Floor ring to highlight the footprint on the grid. */}
+          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.75, 0.95, 32]} />
+            <meshBasicMaterial color="#22c55e" transparent opacity={0.55} />
+          </mesh>
+        </>
+      )}
+    </group>
+  );
+
+  return (
+    <group
+      position={[position.x, position.y, position.z]}
+      rotation={[rotation.x, rotation.y, rotation.z]}
+    >
+      {isSelected ? (
+        <PivotControls
+          anchor={[0, 0, 0]}
+          scale={1.2}
+          depthTest={false}
+          lineWidth={2}
+          disableRotations
+          disableSliders
+          activeAxes={[true, true, true]}
+          onDrag={(l) => {
+            pivotMatrix.current.copy(l);
+          }}
+          onDragEnd={() => {
+            const t = new THREE.Vector3();
+            const r = new THREE.Quaternion();
+            const s = new THREE.Vector3();
+            pivotMatrix.current.decompose(t, r, s);
+            const factor = Math.max(s.x, s.y, s.z);
+            if (factor > 0 && Math.abs(factor - 1) > 0.01) {
+              updateComponent(component.id, {
+                scale: {
+                  x: Math.max(0.1, scale.x * factor),
+                  y: Math.max(0.1, scale.y * factor),
+                  z: Math.max(0.1, scale.z * factor),
+                },
+              });
+            }
+            pivotMatrix.current.identity();
+          }}
+        >
+          {inner}
+        </PivotControls>
+      ) : (
+        inner
       )}
     </group>
   );
@@ -243,9 +293,12 @@ export function Scene({
   const connectionColour = theme === 'dark' ? '#60a5fa' : '#2563eb';
   const cellColour = theme === 'dark' ? '#2d4a2d' : '#cfd8cb';
   const sectionColour = theme === 'dark' ? '#3d6b3d' : '#7f9a7c';
+  const backgroundColour = theme === 'dark' ? '#0d1a0d' : '#f4f7f2';
 
   return (
     <>
+      {/* Theme-bound scene clear colour — without this the framebuffer stays black. */}
+      <color attach="background" args={[backgroundColour]} />
       {/* Lighting */}
       <ambientLight intensity={theme === 'dark' ? 0.6 : 0.85} />
       <directionalLight

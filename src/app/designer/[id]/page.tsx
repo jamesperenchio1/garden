@@ -169,7 +169,8 @@ export default function DesignerEditorPage() {
     (position: { x: number; y: number; z: number }) => {
       if (!pendingType) return;
       pushSnapshot();
-      addComponent(pendingType, position);
+      // Clamp y=0 so components rest on the grid plane, never below it.
+      addComponent(pendingType, { ...position, y: 0 });
       // keep pendingType active so the user can place multiple of the same
       // type in a row — Esc cancels, clicking the button again toggles off.
       setIsDirty(true);
