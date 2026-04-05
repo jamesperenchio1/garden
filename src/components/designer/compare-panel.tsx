@@ -40,7 +40,7 @@ function computeStats(system: HydroSystem): SystemStats {
   );
   // flow node estimate: every connected component contributes
   const connectedIds = new Set(
-    system.components.flatMap((c) => [c.id, ...c.connections])
+    system.components.flatMap((c) => [c.id, ...c.connections.map((conn) => conn.toId)])
   );
   const estimatedFlowNodes = connectedIds.size;
 

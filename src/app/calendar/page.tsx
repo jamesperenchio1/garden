@@ -10,10 +10,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { thaiPlantingCalendar, getPlantingWindowsForMonth, getActivityForPlant } from '@/data/thai-plants';
 import { getMoonPhase, getMoonPhaseEmoji, getMoonPhaseName } from '@/lib/api/moon';
 import { db } from '@/lib/db';
-import { getUpcomingTasks, getOverdueTasks } from '@/lib/notifications';
+import { getUpcomingTasks, getOverdueTasks, completeTask } from '@/lib/notifications';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { Task } from '@/types/calendar';
 import type { Plant } from '@/types/plant';
+import { syncGeneratedTasks, computeNextStep, moonSuggestion, type NextStep } from '@/lib/tasks/generator';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
 
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,20 +39,59 @@ export default function CalendarPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [overdue, setOverdue] = useState<Task[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
+  const [nextSteps, setNextSteps] = useState<NextStep[]>([]);
+  const [moonBias, setMoonBias] = useState<ReturnType<typeof moonSuggestion> | null>(null);
+
+  const refreshTasks = async () => {
+    // Generate any missing tasks from plants first, then read them back.
+    await syncGeneratedTasks();
+    const [upcoming, overdueT, allPlants] = await Promise.all([
+      getUpcomingTasks(30),
+      getOverdueTasks(),
+      db.plants.toArray(),
+    ]);
+    setTasks(upcoming);
+    setOverdue(overdueT);
+    setPlants(allPlants);
+    setNextSteps(
+      allPlants
+        .map((p) => computeNextStep(p))
+        .filter((s): s is NextStep => s !== null)
+        .sort((a, b) => {
+          const order = { soon: 0, upcoming: 1, later: 2 };
+          return order[a.priority] - order[b.priority];
+        })
+    );
+  };
 
   useEffect(() => {
-    async function load() {
-      const [upcoming, overdueT, allPlants] = await Promise.all([
-        getUpcomingTasks(30),
-        getOverdueTasks(),
-        db.plants.toArray(),
-      ]);
-      setTasks(upcoming);
-      setOverdue(overdueT);
-      setPlants(allPlants);
-    }
-    load();
+    refreshTasks();
+    setMoonBias(moonSuggestion(new Date()));
   }, []);
+
+  useEffect(() => {
+    setMoonBias(moonSuggestion(selectedDate));
+  }, [selectedDate]);
+
+  const handleCompleteTask = async (taskId: number) => {
+    await completeTask(taskId);
+    await refreshTasks();
+  };
+
+  const handleAddNextStepAsTask = async (step: NextStep) => {
+    const due = new Date();
+    due.setDate(due.getDate() + 1);
+    await db.tasks.add({
+      plantId: step.plantId,
+      type: 'custom',
+      title: `${step.action}: ${step.plantName}`,
+      description: step.detail,
+      dueDate: due,
+      completed: false,
+      createdAt: new Date(),
+    });
+    await refreshTasks();
+  };
 
   const plantingWindows = getPlantingWindowsForMonth(selectedMonth).filter(
     (p) => categoryFilter === 'all' || p.plantCategory === categoryFilter
@@ -101,11 +143,67 @@ export default function CalendarPage() {
                     <div className="space-y-2">
                       {overdue.map((task) => (
                         <div key={task.id} className="flex items-center justify-between p-2 rounded-lg border border-destructive/20 bg-destructive/5">
-                          <div>
-                            <p className="text-sm font-medium">{task.title}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{task.title.replace(/\s*\[#[^\]]+\]/g, '')}</p>
                             <p className="text-xs text-muted-foreground">Due {formatDistanceToNow(new Date(task.dueDate), { addSuffix: true })}</p>
                           </div>
                           <Badge variant="destructive" className="text-xs capitalize">{task.type}</Badge>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            title="Mark done"
+                            onClick={() => task.id && handleCompleteTask(task.id)}
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* What next — actionable suggestions per plant */}
+              {nextSteps.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      What next?
+                    </CardTitle>
+                    <CardDescription>
+                      Suggested next actions for your plants. Click the arrow to schedule it.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {nextSteps.slice(0, 5).map((step) => (
+                        <div
+                          key={`${step.plantId}-${step.action}`}
+                          className={`flex items-start justify-between gap-2 p-2 rounded-lg border ${
+                            step.priority === 'soon'
+                              ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20'
+                              : step.priority === 'upcoming'
+                                ? 'border-sky-200 bg-sky-50 dark:bg-sky-900/20'
+                                : 'border-border'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">
+                              {step.plantName} — {step.action}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{step.detail}</p>
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 flex-shrink-0"
+                            title="Schedule this"
+                            onClick={() => handleAddNextStepAsTask(step)}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -120,18 +218,35 @@ export default function CalendarPage() {
                 </CardHeader>
                 <CardContent>
                   {tasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No upcoming tasks. Add plants and set up care schedules to see tasks here.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No upcoming tasks. Tasks will appear automatically as you add plants.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {tasks.map((task) => (
-                        <div key={task.id} className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted">
-                          <div>
-                            <p className="text-sm font-medium">{task.title}</p>
+                        <div
+                          key={task.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded-lg border hover:bg-muted"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">
+                              {task.title.replace(/\s*\[#[^\]]+\]/g, '')}
+                            </p>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(task.dueDate), 'PPP')}
+                              {task.description ? ` — ${task.description}` : ''}
                             </p>
                           </div>
-                          <Badge variant="outline" className="text-xs capitalize">{task.type}</Badge>
+                          <Badge variant="outline" className="text-xs capitalize">{task.type.replace('_', ' ')}</Badge>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            title="Mark done"
+                            onClick={() => task.id && handleCompleteTask(task.id)}
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -305,8 +420,38 @@ export default function CalendarPage() {
               <div className="text-center mb-6">
                 <span className="text-6xl">{getMoonPhaseEmoji(moonPhase.phase)}</span>
                 <p className="text-xl font-semibold mt-2">{getMoonPhaseName(moonPhase.phase)}</p>
-                <p className="text-sm text-muted-foreground mt-1">Today - {format(selectedDate, 'PPP')}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {format(selectedDate, 'PPP')} — {moonPhase.illumination}% illuminated
+                </p>
                 <p className="text-sm mt-3 p-3 bg-muted rounded-lg max-w-md mx-auto">{moonPhase.plantingAdvice}</p>
+                {moonBias && (
+                  <div className="mt-3 max-w-md mx-auto p-3 rounded-lg border bg-amber-50 dark:bg-amber-900/20 text-left">
+                    <p className="text-xs font-semibold flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-amber-500" /> Best for today
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{moonBias.text}</p>
+                    {moonBias.favours !== 'rest' && plants.length > 0 && (
+                      <p className="text-xs mt-2">
+                        Plants in your garden matching this phase:{' '}
+                        <span className="font-medium">
+                          {plants
+                            .filter((p) => {
+                              if (moonBias.favours === 'leaf')
+                                return p.category === 'herb' || p.name.toLowerCase().includes('lettuce') || p.name.toLowerCase().includes('spinach') || p.name.toLowerCase().includes('kale');
+                              if (moonBias.favours === 'fruit')
+                                return p.category === 'fruit' || p.name.toLowerCase().includes('tomato') || p.name.toLowerCase().includes('pepper');
+                              if (moonBias.favours === 'root')
+                                return p.name.toLowerCase().includes('carrot') || p.name.toLowerCase().includes('radish') || p.name.toLowerCase().includes('potato') || p.name.toLowerCase().includes('ginger');
+                              return false;
+                            })
+                            .map((p) => p.name)
+                            .slice(0, 5)
+                            .join(', ') || 'none'}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-7 gap-1 md:gap-2">
