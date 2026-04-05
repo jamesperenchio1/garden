@@ -16,7 +16,8 @@ import type { Task } from '@/types/calendar';
 import type { Plant } from '@/types/plant';
 import { syncGeneratedTasks, computeNextStep, moonSuggestion, type NextStep } from '@/lib/tasks/generator';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
+import { CheckCircle2, Sparkles, ArrowRight, Leaf } from 'lucide-react';
+import Link from 'next/link';
 
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -218,9 +219,23 @@ export default function CalendarPage() {
                 </CardHeader>
                 <CardContent>
                   {tasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No upcoming tasks. Tasks will appear automatically as you add plants.
-                    </p>
+                    plants.length === 0 ? (
+                      <div className="text-center py-6 space-y-3">
+                        <Leaf className="h-8 w-8 mx-auto text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          No plants yet. Tasks appear automatically once you add your first.
+                        </p>
+                        <Link href="/plants/new">
+                          <Button variant="outline" size="sm">
+                            Add your first plant
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No upcoming tasks in the next 30 days.
+                      </p>
+                    )
                   ) : (
                     <div className="space-y-2">
                       {tasks.map((task) => (

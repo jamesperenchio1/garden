@@ -93,7 +93,13 @@ export default function CompanionsPage() {
 
         {/* ======================== QUICK LOOKUP TAB ======================= */}
         <TabsContent value="lookup" className="mt-4">
-          <div className="grid md:grid-cols-2 gap-6">
+          <div
+            className={
+              selectedPlant1
+                ? 'grid md:grid-cols-2 gap-6'
+                : 'max-w-2xl mx-auto'
+            }
+          >
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Pick two plants to compare</CardTitle>
@@ -112,7 +118,7 @@ export default function CompanionsPage() {
                   />
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                <div className="max-h-[60vh] overflow-y-auto space-y-1 pr-1">
                   {filteredLookupPlants.map((plant) => {
                     const summary = summaryFor(plant);
                     const isMine = myPlantNames.has(plant);
