@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { usePlants } from '@/hooks/use-plants';
-import { ArrowLeft, X, Search, Database, Loader2, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  X,
+  Search,
+  Database,
+  Loader2,
+  Check,
+  Upload,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react';
 import Link from 'next/link';
 import type { PlantCategory, GrowingMethod, HealthTag, CustomPlant } from '@/types/plant';
 import { db } from '@/lib/db';
 import { searchPlants, getPlantById, type TreflePlant } from '@/lib/api/plants';
+import { extractSeedPacketViaGemini, type SeedPacketData } from '@/lib/ocr';
 
 const categories: { value: PlantCategory; label: string }[] = [
   { value: 'vegetable', label: 'Vegetable' },
@@ -72,6 +83,17 @@ export default function NewPlantPage() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [saveAsCustom, setSaveAsCustom] = useState(true);
   const [lastPickedTrefleId, setLastPickedTrefleId] = useState<number | null>(null);
+  const [lastPickedLookupId, setLastPickedLookupId] = useState<string | null>(null);
+
+  // ── Seed packet OCR state ─────────────────────────────────────────────────
+  type OcrStatus = 'idle' | 'uploading' | 'analyzing' | 'done' | 'error';
+  const [ocrStatus, setOcrStatus] = useState<OcrStatus>('idle');
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<SeedPacketData | null>(null);
+  const [ocrFilledFields, setOcrFilledFields] = useState<string[]>([]);
+  const [seedPacketPreview, setSeedPacketPreview] = useState<string | null>(null);
+  const [seedPacketFile, setSeedPacketFile] = useState<File | null>(null);
+  const seedPacketInputRef = useRef<HTMLInputElement>(null);
 
   const runLookup = async () => {
     const q = lookupQuery.trim();
@@ -100,22 +122,34 @@ export default function NewPlantPage() {
   };
 
   const applyTreflePlant = async (tp: TreflePlant) => {
-    setName(tp.common_name ?? tp.scientific_name);
-    setLastPickedTrefleId(tp.id);
+    // Always set the name immediately so the user sees the form update even
+    // if the detail fetch is slow or fails.
+    const displayName = tp.common_name ?? tp.scientific_name ?? '';
+    if (displayName) setName(displayName);
+    setLastPickedLookupId(tp.id);
+    if (tp.source === 'trefle') {
+      const n = Number(tp.id.split(':')[1]);
+      setLastPickedTrefleId(Number.isFinite(n) ? n : null);
+    } else {
+      setLastPickedTrefleId(null);
+    }
     try {
       const detail = await getPlantById(tp.id);
-      const growth = detail?.main_species?.growth;
-      const specs = detail?.main_species?.specifications;
+      if (!detail) return;
       const bits: string[] = [];
       if (tp.scientific_name) bits.push(`Scientific name: ${tp.scientific_name}`);
       if (tp.family) bits.push(`Family: ${tp.family}`);
-      if (growth?.minimum_temperature?.deg_c !== undefined)
-        bits.push(`Min temp: ${growth.minimum_temperature.deg_c}°C`);
-      if (growth?.maximum_temperature?.deg_c !== undefined)
-        bits.push(`Max temp: ${growth.maximum_temperature.deg_c}°C`);
-      if (growth?.ph_minimum !== undefined)
-        bits.push(`pH ${growth.ph_minimum}–${growth.ph_maximum ?? '?'}`);
-      if (specs?.growth_rate) bits.push(`Growth rate: ${specs.growth_rate}`);
+      if (detail.description) bits.push(detail.description);
+      if (detail.sun_requirements) bits.push(`Sun: ${detail.sun_requirements}`);
+      if (detail.sowing_method) bits.push(`Sowing: ${detail.sowing_method}`);
+      if (detail.spacing) bits.push(`Spacing: ${detail.spacing}`);
+      if (detail.row_spacing) bits.push(`Row spacing: ${detail.row_spacing}`);
+      if (detail.height) bits.push(`Height: ${detail.height}`);
+      if (detail.min_temp_c !== undefined) bits.push(`Min temp: ${detail.min_temp_c}°C`);
+      if (detail.max_temp_c !== undefined) bits.push(`Max temp: ${detail.max_temp_c}°C`);
+      if (detail.ph_minimum !== undefined)
+        bits.push(`pH ${detail.ph_minimum}–${detail.ph_maximum ?? '?'}`);
+      if (detail.growth_rate) bits.push(`Growth rate: ${detail.growth_rate}`);
       if (bits.length > 0) setNotes(bits.join('\n'));
     } catch {
       /* ignore — notes stay as-is */
@@ -128,6 +162,79 @@ export default function NewPlantPage() {
     if (cp.category) setCategory(cp.category);
     if (cp.notes) setNotes(cp.notes);
     if (cp.trefleId) setLastPickedTrefleId(cp.trefleId);
+  };
+
+  // ── Seed packet OCR ────────────────────────────────────────────────────────
+  const handleSeedPacketUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrError(null);
+    setOcrResult(null);
+    setOcrFilledFields([]);
+    setSeedPacketFile(file);
+    if (seedPacketPreview) URL.revokeObjectURL(seedPacketPreview);
+    setSeedPacketPreview(URL.createObjectURL(file));
+
+    setOcrStatus('uploading');
+    // Small defer so the UI reflects "uploading" before the heavier work.
+    await new Promise((r) => setTimeout(r, 50));
+    setOcrStatus('analyzing');
+
+    try {
+      const data = await extractSeedPacketViaGemini(file);
+      setOcrResult(data);
+
+      // Apply to form fields — but only to empty ones, so we don't clobber
+      // anything the user has already typed.
+      const filled: string[] = [];
+      if (data.plantName && !name.trim()) {
+        setName(data.plantName);
+        filled.push('Name');
+      }
+      if (data.variety && !variety.trim()) {
+        setVariety(data.variety);
+        filled.push('Variety');
+      }
+
+      // Build a notes block from the structured fields.
+      const noteBits: string[] = [];
+      if (data.brand) noteBits.push(`Brand: ${data.brand}`);
+      if (data.daysToGermination)
+        noteBits.push(`Days to germination: ${data.daysToGermination}`);
+      if (data.daysToMaturity) noteBits.push(`Days to maturity: ${data.daysToMaturity}`);
+      if (data.plantingDepth) noteBits.push(`Planting depth: ${data.plantingDepth}`);
+      if (data.spacing) noteBits.push(`Spacing: ${data.spacing}`);
+      if (data.rowSpacing) noteBits.push(`Row spacing: ${data.rowSpacing}`);
+      if (data.sunRequirement) noteBits.push(`Sun: ${data.sunRequirement}`);
+      if (data.sowingMethod) noteBits.push(`Sowing: ${data.sowingMethod}`);
+      if (data.whenToPlant) noteBits.push(`When to plant: ${data.whenToPlant}`);
+      if (data.notes) noteBits.push(data.notes);
+
+      if (noteBits.length > 0) {
+        const header = 'From seed packet:';
+        const block = `${header}\n${noteBits.join('\n')}`;
+        setNotes((prev) => (prev.trim() ? `${prev}\n\n${block}` : block));
+        filled.push('Notes');
+      }
+
+      setOcrFilledFields(filled);
+      setOcrStatus('done');
+    } catch (err) {
+      setOcrError((err as Error).message);
+      setOcrStatus('error');
+    }
+  };
+
+  const clearSeedPacket = () => {
+    if (seedPacketPreview) URL.revokeObjectURL(seedPacketPreview);
+    setSeedPacketPreview(null);
+    setSeedPacketFile(null);
+    setOcrStatus('idle');
+    setOcrError(null);
+    setOcrResult(null);
+    setOcrFilledFields([]);
+    if (seedPacketInputRef.current) seedPacketInputRef.current.value = '';
   };
 
   const addTag = () => {
@@ -166,6 +273,22 @@ export default function NewPlantPage() {
       notes: notes.trim() || undefined,
       trefleId: lastPickedTrefleId ?? undefined,
     });
+
+    // Persist the seed packet photo (if uploaded) now that we have a plant id.
+    if (seedPacketFile) {
+      try {
+        const thumbnail = await createThumbnail(seedPacketFile, 400);
+        await db.photos.add({
+          plantId: id,
+          blob: seedPacketFile,
+          thumbnail,
+          type: 'seedPacket',
+          createdAt: new Date(),
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
 
     // Optionally persist as a reusable custom-plant template.
     if (saveAsCustom) {
@@ -287,7 +410,7 @@ export default function NewPlantPage() {
                             {tp.scientific_name}
                           </p>
                         </div>
-                        {lastPickedTrefleId === tp.id && (
+                        {lastPickedLookupId === tp.id && (
                           <Check className="h-3.5 w-3.5 text-green-600" />
                         )}
                       </button>
@@ -304,6 +427,174 @@ export default function NewPlantPage() {
                 />
                 Save this plant to my custom plants for next time
               </label>
+            </CardContent>
+          </Card>
+
+          {/* Seed Packet OCR (Gemini) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Seed Packet Scan
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a photo of your seed packet. Google Gemini will read it
+                and pre-fill the fields below.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <input
+                ref={seedPacketInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleSeedPacketUpload}
+                className="hidden"
+              />
+
+              {!seedPacketPreview ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => seedPacketInputRef.current?.click()}
+                  className="w-full border-dashed h-24 flex flex-col items-center justify-center gap-1"
+                >
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm">Upload seed packet photo</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    JPG/PNG — Gemini will extract the details
+                  </span>
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={seedPacketPreview}
+                      alt="Seed packet preview"
+                      className="h-28 w-28 object-cover rounded border"
+                    />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      {ocrStatus === 'uploading' && (
+                        <div className="flex items-center gap-2 text-sm text-blue-700">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Preparing image…
+                        </div>
+                      )}
+                      {ocrStatus === 'analyzing' && (
+                        <div className="flex items-center gap-2 text-sm text-blue-700">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Analyzing with Gemini…
+                        </div>
+                      )}
+                      {ocrStatus === 'done' && (
+                        <div className="flex items-center gap-2 text-sm text-green-700">
+                          <Check className="h-4 w-4" />
+                          Extraction complete
+                        </div>
+                      )}
+                      {ocrStatus === 'error' && (
+                        <div className="flex items-start gap-2 text-sm text-red-700">
+                          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                          <span className="break-words">{ocrError}</span>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => seedPacketInputRef.current?.click()}
+                        >
+                          Replace
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearSeedPacket}
+                        >
+                          Remove
+                        </Button>
+                        {ocrStatus === 'error' && seedPacketFile && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Retry by re-running against the stored file.
+                              const f = seedPacketFile;
+                              const fakeEvent = {
+                                target: { files: [f] as unknown as FileList },
+                              } as unknown as React.ChangeEvent<HTMLInputElement>;
+                              handleSeedPacketUpload(fakeEvent);
+                            }}
+                          >
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {ocrStatus === 'done' && ocrResult && (
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      {ocrFilledFields.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-xs text-muted-foreground">
+                            Auto-filled:
+                          </span>
+                          {ocrFilledFields.map((f) => (
+                            <Badge
+                              key={f}
+                              variant="secondary"
+                              className="text-[10px]"
+                            >
+                              {f}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Nothing confidently extracted. Check the packet photo
+                          or fill in fields manually.
+                        </p>
+                      )}
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          View extracted data
+                        </summary>
+                        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                          {(
+                            [
+                              ['Plant', ocrResult.plantName],
+                              ['Variety', ocrResult.variety],
+                              ['Brand', ocrResult.brand],
+                              ['Germination', ocrResult.daysToGermination],
+                              ['Maturity', ocrResult.daysToMaturity],
+                              ['Depth', ocrResult.plantingDepth],
+                              ['Spacing', ocrResult.spacing],
+                              ['Row spacing', ocrResult.rowSpacing],
+                              ['Sun', ocrResult.sunRequirement],
+                              ['Sowing', ocrResult.sowingMethod],
+                              ['When', ocrResult.whenToPlant],
+                            ] as const
+                          )
+                            .filter(([, v]) => v !== undefined && v !== '')
+                            .map(([k, v]) => (
+                              <div key={k} className="contents">
+                                <dt className="font-medium text-muted-foreground">
+                                  {k}:
+                                </dt>
+                                <dd className="break-words">{String(v)}</dd>
+                              </div>
+                            ))}
+                        </dl>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -496,4 +787,28 @@ export default function NewPlantPage() {
       </form>
     </div>
   );
+}
+
+async function createThumbnail(file: File, maxSize: number): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url);
+          resolve(blob || new Blob());
+        },
+        'image/jpeg',
+        0.7,
+      );
+    };
+    img.src = url;
+  });
 }

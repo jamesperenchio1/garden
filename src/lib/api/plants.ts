@@ -1,63 +1,51 @@
-const TREFLE_BASE = 'https://trefle.io/api/v1';
+/**
+ * Client-side wrapper around our /api/plant-lookup server route.
+ *
+ * We proxy through a server route for two reasons:
+ *   1. Trefle does not send CORS headers — calling it directly from the
+ *      browser throws.
+ *   2. API tokens (TREFLE_TOKEN) stay server-only.
+ *
+ * The server route also layers in OpenFarm as a free, no-auth fallback.
+ */
 
 export interface TreflePlant {
-  id: number;
+  // Prefixed id, e.g. "trefle:123" or "openfarm:abc". Kept as `number | string`
+  // is awkward, so we expose `id` as string here (matching the server route)
+  // and also keep a numeric `trefleId` where applicable.
+  id: string;
+  source: 'trefle' | 'openfarm';
   common_name: string | null;
-  scientific_name: string;
-  family_common_name: string | null;
+  scientific_name: string | null;
+  family: string | null;
   image_url: string | null;
-  genus: string;
-  family: string;
 }
 
 export interface TreflePlantDetail extends TreflePlant {
-  main_species: {
-    growth: {
-      minimum_temperature?: { deg_c: number };
-      maximum_temperature?: { deg_c: number };
-      soil_humidity?: number;
-      light?: number;
-      atmospheric_humidity?: number;
-      minimum_root_depth?: { cm: number };
-      ph_minimum?: number;
-      ph_maximum?: number;
-    };
-    specifications: {
-      growth_rate?: string;
-      average_height?: { cm: number };
-      maximum_height?: { cm: number };
-      toxicity?: string;
-    };
-  };
+  description?: string;
+  sun_requirements?: string;
+  sowing_method?: string;
+  spacing?: string;
+  row_spacing?: string;
+  height?: string;
+  growing_degree_days?: number;
+  min_temp_c?: number;
+  max_temp_c?: number;
+  ph_minimum?: number;
+  ph_maximum?: number;
+  growth_rate?: string;
 }
 
-export async function searchPlants(query: string, token?: string): Promise<TreflePlant[]> {
-  const apiToken = token || process.env.NEXT_PUBLIC_TREFLE_TOKEN;
-  if (!apiToken) {
-    console.warn('Trefle API token not configured');
-    return [];
-  }
-
-  const url = `${TREFLE_BASE}/plants/search?q=${encodeURIComponent(query)}&token=${apiToken}`;
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Trefle API error: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.data || [];
+export async function searchPlants(query: string): Promise<TreflePlant[]> {
+  const res = await fetch(`/api/plant-lookup?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`Plant lookup failed: ${res.statusText}`);
+  const json = await res.json();
+  return json.data ?? [];
 }
 
-export async function getPlantById(id: number, token?: string): Promise<TreflePlantDetail | null> {
-  const apiToken = token || process.env.NEXT_PUBLIC_TREFLE_TOKEN;
-  if (!apiToken) return null;
-
-  const url = `${TREFLE_BASE}/plants/${id}?token=${apiToken}`;
-  const response = await fetch(url);
-
-  if (!response.ok) return null;
-
-  const data = await response.json();
-  return data.data || null;
+export async function getPlantById(id: string): Promise<TreflePlantDetail | null> {
+  const res = await fetch(`/api/plant-lookup?id=${encodeURIComponent(id)}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data ?? null;
 }
