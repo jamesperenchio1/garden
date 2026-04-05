@@ -72,6 +72,7 @@ test.describe('3D Hydroponic Designer', () => {
 
     // Create system
     await page.locator('button:text("New System")').last().click();
+    await expect(page.locator('text=System Name')).toBeVisible({ timeout: 5000 });
     await page.fill('input[placeholder*="Rooftop"]', 'Flow Test');
     await page.locator('button:has-text("Deep Water")').click();
     await page.locator('button:text("Create & Open")').click();
