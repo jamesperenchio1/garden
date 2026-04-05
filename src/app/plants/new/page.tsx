@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { usePlants } from '@/hooks/use-plants';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, X, Search, Database, Loader2, Check } from 'lucide-react';
 import Link from 'next/link';
-import type { PlantCategory, GrowingMethod, HealthTag } from '@/types/plant';
+import type { PlantCategory, GrowingMethod, HealthTag, CustomPlant } from '@/types/plant';
+import { db } from '@/lib/db';
+import { searchPlants, getPlantById, type TreflePlant } from '@/lib/api/plants';
 
 const categories: { value: PlantCategory; label: string }[] = [
   { value: 'vegetable', label: 'Vegetable' },
@@ -61,6 +63,73 @@ export default function NewPlantPage() {
   const [healthStatus, setHealthStatus] = useState('healthy');
   const [saving, setSaving] = useState(false);
 
+  // ── Lookup state ──────────────────────────────────────────────────────────
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<
+    Array<{ source: 'trefle' | 'custom'; plant: TreflePlant | CustomPlant }>
+  >([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [saveAsCustom, setSaveAsCustom] = useState(true);
+  const [lastPickedTrefleId, setLastPickedTrefleId] = useState<number | null>(null);
+
+  const runLookup = async () => {
+    const q = lookupQuery.trim();
+    if (!q) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    try {
+      // Search locally-saved custom plants first so offline-entered plants surface.
+      const customMatches = await db.customPlants
+        .filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
+        .toArray();
+      let trefleMatches: TreflePlant[] = [];
+      try {
+        trefleMatches = await searchPlants(q);
+      } catch (err) {
+        // Don't fail the whole lookup — still show custom matches.
+        setLookupError('Plant database unreachable. Showing local results only.');
+      }
+      setLookupResults([
+        ...customMatches.map((p) => ({ source: 'custom' as const, plant: p })),
+        ...trefleMatches.map((p) => ({ source: 'trefle' as const, plant: p })),
+      ]);
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const applyTreflePlant = async (tp: TreflePlant) => {
+    setName(tp.common_name ?? tp.scientific_name);
+    setLastPickedTrefleId(tp.id);
+    try {
+      const detail = await getPlantById(tp.id);
+      const growth = detail?.main_species?.growth;
+      const specs = detail?.main_species?.specifications;
+      const bits: string[] = [];
+      if (tp.scientific_name) bits.push(`Scientific name: ${tp.scientific_name}`);
+      if (tp.family) bits.push(`Family: ${tp.family}`);
+      if (growth?.minimum_temperature?.deg_c !== undefined)
+        bits.push(`Min temp: ${growth.minimum_temperature.deg_c}°C`);
+      if (growth?.maximum_temperature?.deg_c !== undefined)
+        bits.push(`Max temp: ${growth.maximum_temperature.deg_c}°C`);
+      if (growth?.ph_minimum !== undefined)
+        bits.push(`pH ${growth.ph_minimum}–${growth.ph_maximum ?? '?'}`);
+      if (specs?.growth_rate) bits.push(`Growth rate: ${specs.growth_rate}`);
+      if (bits.length > 0) setNotes(bits.join('\n'));
+    } catch {
+      /* ignore — notes stay as-is */
+    }
+  };
+
+  const applyCustomPlant = (cp: CustomPlant) => {
+    setName(cp.name);
+    if (cp.variety) setVariety(cp.variety);
+    if (cp.category) setCategory(cp.category);
+    if (cp.notes) setNotes(cp.notes);
+    if (cp.trefleId) setLastPickedTrefleId(cp.trefleId);
+  };
+
   const addTag = () => {
     const trimmed = tagInput.trim();
     if (trimmed && !tags.includes(trimmed)) {
@@ -95,7 +164,30 @@ export default function NewPlantPage() {
       healthTags,
       tags,
       notes: notes.trim() || undefined,
+      trefleId: lastPickedTrefleId ?? undefined,
     });
+
+    // Optionally persist as a reusable custom-plant template.
+    if (saveAsCustom) {
+      try {
+        const exists = await db.customPlants
+          .filter((p) => p.name.toLowerCase() === name.trim().toLowerCase())
+          .first();
+        if (!exists) {
+          await db.customPlants.add({
+            name: name.trim(),
+            variety: variety.trim() || undefined,
+            category,
+            notes: notes.trim() || undefined,
+            trefleId: lastPickedTrefleId ?? undefined,
+            source: lastPickedTrefleId ? 'trefle' : 'user',
+            createdAt: new Date(),
+          });
+        }
+      } catch {
+        /* non-fatal */
+      }
+    }
 
     router.push(`/plants/${id}`);
   };
@@ -109,6 +201,112 @@ export default function NewPlantPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-6">
+          {/* Lookup */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Plant Lookup
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Search the Trefle plant database or your saved custom plants to auto-fill fields.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="e.g. Thai Basil"
+                    value={lookupQuery}
+                    onChange={(e) => setLookupQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        runLookup();
+                      }
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runLookup}
+                  disabled={lookupLoading || !lookupQuery.trim()}
+                >
+                  {lookupLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Search'
+                  )}
+                </Button>
+              </div>
+              {lookupError && (
+                <p className="text-xs text-amber-600">{lookupError}</p>
+              )}
+              {lookupResults.length > 0 && (
+                <div className="max-h-64 overflow-y-auto space-y-1 border rounded-md p-1">
+                  {lookupResults.map((res, i) => {
+                    const key = `${res.source}-${i}`;
+                    if (res.source === 'custom') {
+                      const cp = res.plant as CustomPlant;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => applyCustomPlant(cp)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left"
+                        >
+                          <Badge variant="secondary" className="text-[10px]">Saved</Badge>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{cp.name}</p>
+                            {cp.scientificName && (
+                              <p className="text-[10px] text-muted-foreground italic truncate">
+                                {cp.scientificName}
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    }
+                    const tp = res.plant as TreflePlant;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => applyTreflePlant(tp)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left"
+                      >
+                        <Badge variant="outline" className="text-[10px]">Trefle</Badge>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {tp.common_name ?? tp.scientific_name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground italic truncate">
+                            {tp.scientific_name}
+                          </p>
+                        </div>
+                        {lastPickedTrefleId === tp.id && (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={saveAsCustom}
+                  onChange={(e) => setSaveAsCustom(e.target.checked)}
+                  className="rounded"
+                />
+                Save this plant to my custom plants for next time
+              </label>
+            </CardContent>
+          </Card>
+
           {/* Basic Info */}
           <Card>
             <CardHeader>

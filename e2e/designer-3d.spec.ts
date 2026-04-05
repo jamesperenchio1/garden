@@ -25,15 +25,28 @@ test.describe('3D Hydroponic Designer', () => {
     // Take screenshot of 3D scene with grid floor
     await page.screenshot({ path: 'e2e/screenshots/designer-3d-empty.png', fullPage: true });
 
-    // Verify component panel is present with add buttons
-    await expect(page.locator('text=Click to add to scene')).toBeVisible();
+    // Verify component panel is present
+    await expect(page.locator('text=Components').first()).toBeVisible();
 
-    // Add 3 components via the component catalogue (use unique description text)
+    // New explicit-place flow: click a type to arm, click the canvas to drop.
+    const canvasBox = await canvas.boundingBox();
+    if (!canvasBox) throw new Error('canvas bounding box missing');
+    const placeAt = async (offsetX: number, offsetY: number) => {
+      await page.mouse.click(
+        canvasBox.x + canvasBox.width / 2 + offsetX,
+        canvasBox.y + canvasBox.height / 2 + offsetY,
+      );
+      await page.waitForTimeout(150);
+    };
+
     await page.locator('button:has-text("Water / nutrient")').click();
+    await placeAt(-80, 0);
     await page.locator('button:has-text("Moves nutrient")').click();
+    await placeAt(0, 0);
     await page.locator('button:has-text("NFT or rail")').click();
+    await placeAt(80, 0);
 
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
 
     // Verify 3 components in scene
     await expect(page.locator('text=In Scene (3)')).toBeVisible();
@@ -59,18 +72,34 @@ test.describe('3D Hydroponic Designer', () => {
 
     // Create system
     await page.locator('button:text("New System")').last().click();
+    await expect(page.locator('text=System Name')).toBeVisible({ timeout: 5000 });
     await page.fill('input[placeholder*="Rooftop"]', 'Flow Test');
     await page.locator('button:has-text("Deep Water")').click();
     await page.locator('button:text("Create & Open")').click();
 
     await page.waitForURL(/\/designer\/\d+/, { timeout: 15000 });
-    await page.waitForSelector('canvas', { timeout: 15000 });
+    const canvas2 = page.locator('canvas');
+    await expect(canvas2).toBeVisible({ timeout: 15000 });
 
-    // Add 4 components
+    // Add 4 components via explicit place flow
+    const cbox = await canvas2.boundingBox();
+    if (!cbox) throw new Error('canvas bounding box missing');
+    const drop = async (offsetX: number, offsetY: number) => {
+      await page.mouse.click(
+        cbox.x + cbox.width / 2 + offsetX,
+        cbox.y + cbox.height / 2 + offsetY,
+      );
+      await page.waitForTimeout(150);
+    };
+
     await page.locator('button:has-text("Water / nutrient")').click();
+    await drop(-120, -60);
     await page.locator('button:has-text("Moves nutrient")').click();
+    await drop(-40, -60);
     await page.locator('button:has-text("Ebb & flow")').click();
+    await drop(40, -60);
     await page.locator('button:has-text("Aerates nutrient")').click();
+    await drop(120, -60);
 
     await page.waitForTimeout(500);
     await expect(page.locator('text=In Scene (4)')).toBeVisible();

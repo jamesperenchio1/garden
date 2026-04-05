@@ -14,15 +14,23 @@ export function useWeather() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Hard 15s timeout so the page never sits on skeletons forever when
+    // the weather API is offline or blocked.
+    const timeoutId = setTimeout(() => {
+      setError('Weather request timed out after 15 seconds');
+      setLoading(false);
+    }, 15000);
     try {
       const data = await fetchWeather({
         latitude: location.latitude,
         longitude: location.longitude,
       });
+      clearTimeout(timeoutId);
       setWeather(data);
+      setLoading(false);
     } catch (err) {
+      clearTimeout(timeoutId);
       setError(err instanceof Error ? err.message : 'Failed to fetch weather');
-    } finally {
       setLoading(false);
     }
   }, [location.latitude, location.longitude]);

@@ -66,6 +66,19 @@ export interface YieldRecord {
   createdAt: Date;
 }
 
+export interface CustomPlant {
+  id?: number;
+  name: string;
+  scientificName?: string;
+  variety?: string;
+  category: PlantCategory;
+  notes?: string;
+  trefleId?: number;
+  imageUrl?: string;
+  source: 'user' | 'trefle';
+  createdAt: Date;
+}
+
 export interface YieldReference {
   id?: number;
   plantName: string;

@@ -27,7 +27,6 @@ export function R3FCanvas({
       shadows
       camera={{ position: [6, 6, 8], fov: 50 }}
       gl={{ antialias: true, alpha: false }}
-      style={{ background: '#0d1a0d' }}
     >
       <Scene
         components={components}
