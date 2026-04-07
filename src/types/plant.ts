@@ -102,6 +102,20 @@ export interface YieldReference {
   tips: string;
 }
 
+// ── Feature Requests / Feedback ────────────────────────────────────────────
+
+export type FeedbackStatus = 'new' | 'noted' | 'planned' | 'done';
+
+export interface FeatureRequest {
+  id?: number;
+  title: string;
+  description?: string;
+  submittedBy?: string; // customer name or identifier
+  status: FeedbackStatus;
+  upvotes: number;
+  createdAt: Date;
+}
+
 // ── Locations ───────────────────────────────────────────────────────────────
 
 export interface GardenLocation {

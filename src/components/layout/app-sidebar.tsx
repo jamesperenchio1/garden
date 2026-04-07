@@ -12,6 +12,7 @@ import {
   FlaskConical,
   Mountain,
   ImageIcon,
+  MessageSquarePlus,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -36,6 +37,7 @@ const navItems = [
   { title: 'System Designer', href: '/designer', icon: Droplets },
   { title: 'Nutrients', href: '/nutrients', icon: FlaskConical },
   { title: 'Soil Planner', href: '/soil', icon: Mountain },
+  { title: 'Features & Feedback', href: '/features', icon: MessageSquarePlus },
 ];
 
 export function AppSidebar() {

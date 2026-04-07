@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Plant, Photo, LogEntry, YieldRecord, YieldReference, CustomPlant, GardenLocation } from '@/types/plant';
+import type { Plant, Photo, LogEntry, YieldRecord, YieldReference, CustomPlant, GardenLocation, FeatureRequest } from '@/types/plant';
 import type { HydroSystem } from '@/types/system';
 import type { Task } from '@/types/calendar';
 import type { SoilBed } from '@/types/companion';
@@ -15,6 +15,7 @@ export class GardenDB extends Dexie {
   yieldReferences!: Table<YieldReference>;
   customPlants!: Table<CustomPlant>;
   locations!: Table<GardenLocation>;
+  featureRequests!: Table<FeatureRequest>;
 
   constructor() {
     super('gardenCompanion');
@@ -67,6 +68,20 @@ export class GardenDB extends Dexie {
           plant.status = 'growing';
         }
       });
+    });
+    // v5: feature requests / feedback table
+    this.version(5).stores({
+      plants: '++id, name, category, growingMethod, status, locationId, createdAt, *tags',
+      photos: '++id, plantId, createdAt, type',
+      logEntries: '++id, plantId, createdAt, type',
+      systems: '++id, name, type, createdAt',
+      soilBeds: '++id, name, createdAt',
+      tasks: '++id, plantId, dueDate, type, completed',
+      yieldRecords: '++id, plantId, harvestedAt, rating',
+      yieldReferences: '++id, plantName, category',
+      customPlants: '++id, name, scientificName, category, createdAt',
+      locations: '++id, name, zone, createdAt',
+      featureRequests: '++id, status, createdAt',
     });
   }
 }
