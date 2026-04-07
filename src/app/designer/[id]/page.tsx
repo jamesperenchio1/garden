@@ -16,6 +16,8 @@ import {
   GitCompare,
   Trash2,
   Link2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useDesignerStore } from '@/store/designer-store';
 import { useSystems } from '@/hooks/use-systems';
@@ -82,9 +84,12 @@ export default function DesignerEditorPage() {
     removeComponent,
     selectComponent,
     updateComponent,
-    connectComponents,
     clearAll,
     loadComponents,
+    theme,
+    setTheme,
+    connectMode,
+    cancelConnectMode,
   } = useDesignerStore();
 
   const [showGrid, setShowGrid] = useState(true);
@@ -152,25 +157,22 @@ export default function DesignerEditorPage() {
   }, [popSnapshot, loadComponents]);
 
   // -----------------------------------------------------------------------
-  // Add component — either via panel click (place at center) or canvas click
+  // Explicit placement: selecting a component type arms the next floor click.
+  // Spam-clicking the catalogue no longer spawns items — nothing happens
+  // until the user actually clicks the grid.
   // -----------------------------------------------------------------------
-  const handleAddComponentFromPanel = useCallback(
-    (type: ComponentType) => {
-      pushSnapshot();
-      // Offset so multiple adds don't stack exactly
-      const offset = (components.length % 5) * 1.2;
-      addComponent(type, { x: offset, y: 0, z: 0 });
-      setIsDirty(true);
-    },
-    [addComponent, components.length, pushSnapshot]
-  );
+  const handleSelectType = useCallback((type: ComponentType | null) => {
+    setPendingType(type);
+  }, []);
 
   const handlePlaceOnCanvas = useCallback(
     (position: { x: number; y: number; z: number }) => {
       if (!pendingType) return;
       pushSnapshot();
-      addComponent(pendingType, position);
-      setPendingType(null);
+      // Clamp y=0 so components rest on the grid plane, never below it.
+      addComponent(pendingType, { ...position, y: 0 });
+      // keep pendingType active so the user can place multiple of the same
+      // type in a row — Esc cancels, clicking the button again toggles off.
       setIsDirty(true);
     },
     [addComponent, pendingType, pushSnapshot]
@@ -183,15 +185,6 @@ export default function DesignerEditorPage() {
       setIsDirty(true);
     },
     [updateComponent, pushSnapshot]
-  );
-
-  const handleConnectComponents = useCallback(
-    (fromId: string, toId: string) => {
-      pushSnapshot();
-      connectComponents(fromId, toId);
-      setIsDirty(true);
-    },
-    [connectComponents, pushSnapshot]
   );
 
   const handleRemoveComponent = useCallback(
@@ -220,6 +213,7 @@ export default function DesignerEditorPage() {
       if (e.key === 'Escape') {
         selectComponent(null);
         setPendingType(null);
+        cancelConnectMode();
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedComponentId && document.activeElement?.tagName !== 'INPUT') {
@@ -229,7 +223,7 @@ export default function DesignerEditorPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSave, handleUndo, selectComponent, selectedComponentId, handleRemoveComponent]);
+  }, [handleSave, handleUndo, selectComponent, selectedComponentId, handleRemoveComponent, cancelConnectMode]);
 
   const currentSystem = systems.find((s) => s.id === systemId);
 
@@ -293,6 +287,21 @@ export default function DesignerEditorPage() {
           <span className="hidden sm:inline">Flow</span>
         </Button>
 
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="h-7 gap-1"
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-3.5 w-3.5" />
+          ) : (
+            <Moon className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </Button>
+
         <Separator orientation="vertical" className="h-5" />
 
         <Button
@@ -327,9 +336,9 @@ export default function DesignerEditorPage() {
           <ComponentPanel
             components={components}
             selectedComponentId={selectedComponentId}
-            onAddComponent={handleAddComponentFromPanel}
+            pendingType={pendingType}
+            onSelectType={handleSelectType}
             onUpdateComponent={handleUpdateComponent}
-            onConnectComponents={handleConnectComponents}
             onRemoveComponent={handleRemoveComponent}
             onSelectComponent={selectComponent}
           />
@@ -340,6 +349,11 @@ export default function DesignerEditorPage() {
           {pendingType && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none">
               Click on the grid to place {pendingType.replace('_', ' ')} — Esc to cancel
+            </div>
+          )}
+          {connectMode.active && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-blue-600/90 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none">
+              Connecting… click a component to finish, click the grid to add a bend — Esc to cancel
             </div>
           )}
           <SystemCanvas
@@ -359,7 +373,6 @@ export default function DesignerEditorPage() {
             selectedComponentId={selectedComponentId}
             onUpdate={handleUpdateComponent}
             onRemove={handleRemoveComponent}
-            onConnect={handleConnectComponents}
           />
         </div>
       </div>
@@ -376,7 +389,6 @@ interface SelectedComponentPanelProps {
   selectedComponentId: string | null;
   onUpdate: (id: string, updates: Partial<SystemComponent>) => void;
   onRemove: (id: string) => void;
-  onConnect: (fromId: string, toId: string) => void;
 }
 
 function SelectedComponentPanel({
@@ -384,7 +396,6 @@ function SelectedComponentPanel({
   selectedComponentId,
   onUpdate,
   onRemove,
-  onConnect,
 }: SelectedComponentPanelProps) {
   const selected = components.find((c) => c.id === selectedComponentId);
 
@@ -427,9 +438,8 @@ function SelectedComponentPanel({
     fish_tank: 'Fish Tank',
   };
 
-  const connectedComponents = components.filter((c) =>
-    selected.connections.includes(c.id)
-  );
+  const connectedIds = new Set(selected.connections.map((conn) => conn.toId));
+  const connectedComponents = components.filter((c) => connectedIds.has(c.id));
 
   return (
     <div className="p-3 h-full overflow-y-auto space-y-3">

@@ -26,14 +26,66 @@ export type ComponentType =
   | 'fish_tank'
   | 'timer';
 
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface Connection {
+  /** ID of the target component. */
+  toId: string;
+  /** Optional path bends in world space (excluding endpoints). */
+  waypoints: Vec3[];
+  /** Explicit tube length in metres. Overrides the straight-line distance. */
+  lengthOverride?: number;
+}
+
 export interface SystemComponent {
   id: string;
   type: ComponentType;
-  position: { x: number; y: number; z: number };
-  rotation: { x: number; y: number; z: number };
-  scale: { x: number; y: number; z: number };
-  connections: string[]; // IDs of connected components
+  position: Vec3;
+  rotation: Vec3;
+  scale: Vec3;
+  /** Outgoing connections. May be legacy `string[]` on disk — normalised on load. */
+  connections: Connection[];
   properties: Record<string, number | string | boolean>;
+}
+
+/** Normalise a possibly-legacy connections field to the Connection[] shape. */
+export function normaliseConnections(
+  raw: unknown
+): Connection[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Connection[] = [];
+  for (const c of raw) {
+    if (typeof c === 'string') {
+      out.push({ toId: c, waypoints: [] });
+      continue;
+    }
+    if (c && typeof c === 'object' && 'toId' in c) {
+      const conn = c as Partial<Connection>;
+      const next: Connection = {
+        toId: String(conn.toId),
+        waypoints: Array.isArray(conn.waypoints) ? conn.waypoints : [],
+      };
+      if (typeof conn.lengthOverride === 'number') {
+        next.lengthOverride = conn.lengthOverride;
+      }
+      out.push(next);
+    }
+  }
+  return out;
+}
+
+export function normaliseComponent(c: SystemComponent): SystemComponent {
+  return {
+    ...c,
+    scale: c.scale ?? { x: 1, y: 1, z: 1 },
+    rotation: c.rotation ?? { x: 0, y: 0, z: 0 },
+    connections: normaliseConnections(c.connections as unknown),
+    properties: c.properties ?? {},
+  };
 }
 
 export interface HydroSystem {

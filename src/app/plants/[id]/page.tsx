@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale, Pencil, Check, Loader2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { extractSeedPacketData } from '@/lib/ocr';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/db';
@@ -34,7 +36,17 @@ export default function PlantDetailPage() {
   const { photos, addPhoto, deletePhoto } = usePlantPhotos(plantId);
   const { entries, addEntry } = usePlantLog(plantId);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const seedPacketInputRef = useRef<HTMLInputElement>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({});
+  const [seedPacketUrl, setSeedPacketUrl] = useState<string | null>(null);
+  const [seedPacketOcrRunning, setSeedPacketOcrRunning] = useState(false);
+
+  // Editable tags/notes state
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagDraft, setTagDraft] = useState<string[]>([]);
+  const [tagInputValue, setTagInputValue] = useState('');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
 
   // Health tag dialog state
   const [showHealthDialog, setShowHealthDialog] = useState(false);
@@ -63,10 +75,11 @@ export default function PlantDetailPage() {
     load();
   }, [plantId]);
 
-  // Create object URLs for photos
+  // Create object URLs for plant photos.
   useEffect(() => {
     const urls: Record<number, string> = {};
-    photos.forEach((photo) => {
+    const seedPackets = photos.filter((p) => p.type === 'plant');
+    seedPackets.forEach((photo) => {
       if (photo.id && photo.thumbnail) {
         urls[photo.id] = URL.createObjectURL(photo.thumbnail);
       }
@@ -75,6 +88,17 @@ export default function PlantDetailPage() {
     return () => {
       Object.values(urls).forEach(URL.revokeObjectURL);
     };
+  }, [photos]);
+
+  // Separate URL for the current seed packet image.
+  useEffect(() => {
+    const packet = photos.find((p) => p.type === 'seedPacket');
+    if (packet?.thumbnail) {
+      const url = URL.createObjectURL(packet.thumbnail);
+      setSeedPacketUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setSeedPacketUrl(null);
   }, [photos]);
 
   if (loading) {
@@ -119,6 +143,92 @@ export default function PlantDetailPage() {
     });
 
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSeedPacketUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !plant) return;
+
+    const thumbnail = await createThumbnail(file, 400);
+
+    // If one already exists, remove it first (only one seed packet per plant).
+    const existing = photos.find((p) => p.type === 'seedPacket');
+    if (existing?.id) await deletePhoto(existing.id);
+
+    await addPhoto({
+      plantId,
+      blob: file,
+      thumbnail,
+      type: 'seedPacket',
+      createdAt: new Date(),
+    });
+
+    // Log the upload.
+    await addEntry({
+      plantId,
+      type: 'photo',
+      title: 'Seed packet photo added',
+      createdAt: new Date(),
+    });
+
+    // Run OCR in the background — prefill variety / notes if we can pull them out.
+    setSeedPacketOcrRunning(true);
+    try {
+      const data = await extractSeedPacketData(file);
+      const updates: Partial<Plant> = {};
+      if (data.variety && !plant.variety) updates.variety = data.variety;
+      const ocrBits: string[] = [];
+      if (data.daysToMaturity) ocrBits.push(`Days to maturity: ${data.daysToMaturity}`);
+      if (data.daysToGermination) ocrBits.push(`Germination: ${data.daysToGermination} days`);
+      if (data.plantingDepth) ocrBits.push(`Planting depth: ${data.plantingDepth}`);
+      if (data.spacing) ocrBits.push(`Spacing: ${data.spacing}`);
+      if (data.sunRequirement) ocrBits.push(`Sun: ${data.sunRequirement}`);
+      if (ocrBits.length > 0) {
+        const existing = plant.notes ? `${plant.notes}\n\n` : '';
+        updates.notes = `${existing}From seed packet:\n${ocrBits.join('\n')}`;
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.plants.update(plantId, { ...updates, updatedAt: new Date() });
+        setPlant({ ...plant, ...updates });
+      }
+    } catch (err) {
+      console.error('Seed packet OCR failed:', err);
+    } finally {
+      setSeedPacketOcrRunning(false);
+      if (seedPacketInputRef.current) seedPacketInputRef.current.value = '';
+    }
+  };
+
+  const beginEditTags = () => {
+    setTagDraft([...(plant?.tags ?? [])]);
+    setTagInputValue('');
+    setEditingTags(true);
+  };
+  const addTagDraft = () => {
+    const t = tagInputValue.trim();
+    if (!t || tagDraft.includes(t)) return;
+    setTagDraft([...tagDraft, t]);
+    setTagInputValue('');
+  };
+  const removeTagDraft = (tag: string) => {
+    setTagDraft(tagDraft.filter((t) => t !== tag));
+  };
+  const saveTags = async () => {
+    if (!plant) return;
+    await db.plants.update(plantId, { tags: tagDraft, updatedAt: new Date() });
+    setPlant({ ...plant, tags: tagDraft });
+    setEditingTags(false);
+  };
+
+  const beginEditNotes = () => {
+    setNotesDraft(plant?.notes ?? '');
+    setEditingNotes(true);
+  };
+  const saveNotes = async () => {
+    if (!plant) return;
+    await db.plants.update(plantId, { notes: notesDraft.trim() || undefined, updatedAt: new Date() });
+    setPlant({ ...plant, notes: notesDraft.trim() || undefined });
+    setEditingNotes(false);
   };
 
   const handleAddHealthTag = async () => {
@@ -573,32 +683,109 @@ export default function PlantDetailPage() {
           </Card>
 
           {/* Tags */}
-          {plant.tags && plant.tags.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card>
+            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Tags</CardTitle>
+              {!editingTags ? (
+                <Button variant="ghost" size="sm" onClick={beginEditTags}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingTags(false)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={saveTags}>
+                    <Check className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {editingTags ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {tagDraft.map((tag) => (
+                      <Badge key={tag} variant="outline" className="gap-1">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeTagDraft(tag)}
+                          className="ml-1 hover:text-destructive"
+                          aria-label={`Remove ${tag}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {tagDraft.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No tags yet.</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={tagInputValue}
+                      onChange={(e) => setTagInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addTagDraft();
+                        }
+                      }}
+                      placeholder="Add a tag…"
+                      className="h-8"
+                    />
+                    <Button size="sm" variant="outline" onClick={addTagDraft}>
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              ) : plant.tags && plant.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {plant.tags.map((tag) => (
                     <Badge key={tag} variant="outline">{tag}</Badge>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <p className="text-sm text-muted-foreground">No tags yet. Click the pencil to add some.</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Notes */}
-          {plant.notes && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{plant.notes}</p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Notes</CardTitle>
+              {!editingNotes ? (
+                <Button variant="ghost" size="sm" onClick={beginEditNotes}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={saveNotes}>
+                    <Check className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {editingNotes ? (
+                <Textarea
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                  placeholder="Add notes about this plant…"
+                  rows={5}
+                />
+              ) : plant.notes ? (
+                <p className="text-sm whitespace-pre-wrap">{plant.notes}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No notes yet. Click the pencil to add some.</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Seed Packet */}
           <Card>
@@ -606,11 +793,56 @@ export default function PlantDetailPage() {
               <CardTitle className="text-base">Seed Packet</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-muted">
-                <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">Upload seed packet photo</p>
-                <p className="text-xs text-muted-foreground">OCR will extract planting info</p>
-              </div>
+              <input
+                ref={seedPacketInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleSeedPacketUpload}
+              />
+              {seedPacketUrl ? (
+                <div className="space-y-2">
+                  <div className="relative rounded-lg overflow-hidden border">
+                    <img src={seedPacketUrl} alt="Seed packet" className="w-full h-auto object-contain" />
+                    {seedPacketOcrRunning && (
+                      <div className="absolute inset-0 bg-background/70 flex items-center justify-center gap-2 text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Reading packet…
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => seedPacketInputRef.current?.click()}
+                    disabled={seedPacketOcrRunning}
+                  >
+                    <Upload className="h-3 w-3 mr-2" />
+                    Replace
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => seedPacketInputRef.current?.click()}
+                  disabled={seedPacketOcrRunning}
+                  className="w-full border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-muted disabled:opacity-60"
+                >
+                  {seedPacketOcrRunning ? (
+                    <>
+                      <Loader2 className="h-6 w-6 mx-auto text-muted-foreground mb-2 animate-spin" />
+                      <p className="text-sm text-muted-foreground">Reading packet…</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">Upload seed packet photo</p>
+                      <p className="text-xs text-muted-foreground">OCR will extract planting info</p>
+                    </>
+                  )}
+                </button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -639,6 +871,3 @@ async function createThumbnail(file: File, maxSize: number): Promise<Blob> {
   });
 }
 
-function Label({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
-  return <label htmlFor={htmlFor} className="text-sm font-medium">{children}</label>;
-}

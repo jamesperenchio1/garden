@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/db';
 import type { HydroSystem } from '@/types/system';
+import { normaliseComponent } from '@/types/system';
 
 export function useSystems() {
   const [systems, setSystems] = useState<HydroSystem[]>([]);
@@ -11,6 +12,10 @@ export function useSystems() {
   const refresh = useCallback(async () => {
     setLoading(true);
     const allSystems = await db.systems.orderBy('createdAt').reverse().toArray();
+    // Normalise legacy systems where connections were stored as string[].
+    for (const sys of allSystems) {
+      sys.components = (sys.components ?? []).map(normaliseComponent);
+    }
     setSystems(allSystems);
     setLoading(false);
   }, []);

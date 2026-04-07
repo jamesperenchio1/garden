@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 import { useWeather } from '@/hooks/use-weather';
 import { useAppStore } from '@/store/app-store';
 import { getWeatherDescription, getWeatherIcon } from '@/lib/api/weather';
@@ -16,7 +18,7 @@ import { getMoonPhase, getMoonPhaseEmoji, getMoonPhaseName } from '@/lib/api/moo
 import { format } from 'date-fns';
 
 export default function WeatherPage() {
-  const { weather, loading, error } = useWeather();
+  const { weather, loading, error, refresh } = useWeather();
   const { thaiHazardsEnabled, setThaiHazardsEnabled, location } = useAppStore();
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
@@ -38,9 +40,15 @@ export default function WeatherPage() {
   if (error || !weather) {
     return (
       <Card>
-        <CardContent className="pt-6 text-center py-12">
+        <CardContent className="pt-6 text-center py-12 space-y-4">
           <p className="text-lg font-semibold text-destructive">Unable to load weather data</p>
-          <p className="text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            {error ?? 'Weather service is unreachable.'} Check your connection and try again.
+          </p>
+          <Button onClick={refresh} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );

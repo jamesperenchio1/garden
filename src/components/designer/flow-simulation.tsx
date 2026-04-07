@@ -16,7 +16,33 @@ interface FlowEdge {
   flowRate: number;
   /** true when water flows downward (gravity assists) */
   gravityAssisted: boolean;
+  /** Effective tube length in metres used for the calculation. */
+  lengthMetres: number;
   issue?: FlowIssue;
+}
+
+/** One world-space unit ≈ one metre for simulation purposes. */
+function segmentLength(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const dz = a.z - b.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+export function getConnectionPath(
+  from: SystemComponent,
+  to: SystemComponent,
+  waypoints: { x: number; y: number; z: number }[]
+) {
+  return [from.position, ...waypoints, to.position];
+}
+
+export function computePathLength(path: { x: number; y: number; z: number }[]): number {
+  let len = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    len += segmentLength(path[i], path[i + 1]);
+  }
+  return len;
 }
 
 function computeFlowEdges(components: SystemComponent[]): FlowEdge[] {
@@ -24,12 +50,16 @@ function computeFlowEdges(components: SystemComponent[]): FlowEdge[] {
   const edges: FlowEdge[] = [];
 
   for (const comp of components) {
-    for (const connId of comp.connections) {
-      const target = byId[connId];
+    for (const conn of comp.connections) {
+      const target = byId[conn.toId];
       if (!target) continue;
 
       const heightDiff = comp.position.y - target.position.y; // positive = downhill
       const gravityAssisted = heightDiff > 0.01;
+
+      const path = getConnectionPath(comp, target, conn.waypoints);
+      const computedLength = computePathLength(path);
+      const lengthMetres = conn.lengthOverride ?? computedLength;
 
       // Simple physics: base flow rate boosted by pump or gravity
       let flowRate = 0.4;
@@ -45,17 +75,27 @@ function computeFlowEdges(components: SystemComponent[]): FlowEdge[] {
         flowRate *= Math.min(1, diameter / 0.05);
       }
 
+      // Length-based pressure drop: 1m = negligible, 10m = mild, >50m = severe,
+      // 1,000,000m = crushingly low. Uses an exponential decay; no cap, the user
+      // is allowed to build absurd systems — they just get flagged.
+      const lengthPenalty = Math.exp(-lengthMetres / 25);
+      flowRate *= lengthPenalty;
+
       // Detect issues
       let issue: FlowIssue | undefined;
       if (flowRate < 0.2) {
+        const reason =
+          lengthMetres > 50
+            ? `tube length ${lengthMetres.toFixed(0)}m is too long`
+            : `low pressure`;
         issue = {
           type: 'pressure_drop',
           componentId: comp.id,
           severity: flowRate < 0.1 ? 'critical' : 'warning',
-          description: `Low flow rate (${(flowRate * 100).toFixed(0)}%) between ${comp.type} and ${target.type}`,
+          description: `${(flowRate * 100).toFixed(0)}% flow ${comp.type} → ${target.type} (${reason})`,
         };
       }
-      if (!gravityAssisted && comp.type !== 'pump' && flowRate < 0.5) {
+      if (!gravityAssisted && comp.type !== 'pump' && flowRate < 0.5 && !issue) {
         issue = {
           type: 'dead_spot',
           componentId: comp.id,
@@ -64,7 +104,7 @@ function computeFlowEdges(components: SystemComponent[]): FlowEdge[] {
         };
       }
 
-      edges.push({ from: comp, to: target, flowRate, gravityAssisted, issue });
+      edges.push({ from: comp, to: target, flowRate, gravityAssisted, lengthMetres, issue });
     }
   }
 

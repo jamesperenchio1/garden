@@ -25,6 +25,7 @@ export default function PlantsPage() {
   // Load yield totals and references from DB
   const [yieldTotals, setYieldTotals] = useStatePlain<Record<number, number>>({});
   const [yieldRefs, setYieldRefs] = useStatePlain<Record<string, YieldReference>>({});
+  const [photoUrls, setPhotoUrls] = useStatePlain<Record<number, string>>({});
 
   useEffect(() => {
     (async () => {
@@ -44,6 +45,33 @@ export default function PlantsPage() {
       }
       setYieldRefs(refMap);
     })();
+  }, [plants]);
+
+  // Pull the first (or most recent) plant photo for each plant and build blob URLs.
+  useEffect(() => {
+    let cancelled = false;
+    const created: string[] = [];
+    (async () => {
+      const urls: Record<number, string> = {};
+      for (const p of plants) {
+        if (!p.id) continue;
+        const photo = await db.photos
+          .where('plantId')
+          .equals(p.id)
+          .filter((ph) => ph.type === 'plant')
+          .first();
+        if (photo?.thumbnail) {
+          const url = URL.createObjectURL(photo.thumbnail);
+          urls[p.id] = url;
+          created.push(url);
+        }
+      }
+      if (!cancelled) setPhotoUrls(urls);
+    })();
+    return () => {
+      cancelled = true;
+      created.forEach(URL.revokeObjectURL);
+    };
   }, [plants]);
 
   const filtered = plants.filter((p) => {
@@ -158,8 +186,16 @@ export default function PlantsPage() {
             <Link key={plant.id} href={`/plants/${plant.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
                 <CardContent className="pt-6">
-                  <div className="h-32 bg-muted rounded-lg flex items-center justify-center mb-3">
-                    <Leaf className="h-8 w-8 text-muted-foreground" />
+                  <div className="h-32 bg-muted rounded-lg overflow-hidden flex items-center justify-center mb-3">
+                    {plant.id && photoUrls[plant.id] ? (
+                      <img
+                        src={photoUrls[plant.id]}
+                        alt={plant.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Leaf className="h-8 w-8 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-start justify-between">

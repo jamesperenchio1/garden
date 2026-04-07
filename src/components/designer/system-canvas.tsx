@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
+import { useDesignerStore } from '@/store/designer-store';
 import type { SystemComponent } from '@/types/system';
 
 // Dynamically import Canvas with SSR disabled — Three.js requires browser APIs
@@ -27,8 +28,13 @@ interface SystemCanvasProps {
 }
 
 export function SystemCanvas(props: SystemCanvasProps) {
+  const theme = useDesignerStore((s) => s.theme);
   return (
-    <div className="w-full h-full rounded-lg overflow-hidden bg-[#0d1a0d]">
+    <div
+      className={`w-full h-full rounded-lg overflow-hidden ${
+        theme === 'dark' ? 'bg-[#0d1a0d]' : 'bg-[#f4f7f2]'
+      }`}
+    >
       <Suspense
         fallback={
           <div className="flex items-center justify-center w-full h-full">
