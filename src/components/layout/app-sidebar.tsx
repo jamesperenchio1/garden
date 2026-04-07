@@ -11,6 +11,7 @@ import {
   Users,
   FlaskConical,
   Mountain,
+  ImageIcon,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -28,10 +29,11 @@ import {
 const navItems = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'My Plants', href: '/plants', icon: Leaf },
+  { title: 'Gallery', href: '/gallery', icon: ImageIcon },
+  { title: 'Companions', href: '/companions', icon: Users },
   { title: 'Weather', href: '/weather', icon: Cloud },
   { title: 'Calendar', href: '/calendar', icon: CalendarDays },
   { title: 'System Designer', href: '/designer', icon: Droplets },
-  { title: 'Companions', href: '/companions', icon: Users },
   { title: 'Nutrients', href: '/nutrients', icon: FlaskConical },
   { title: 'Soil Planner', href: '/soil', icon: Mountain },
 ];
