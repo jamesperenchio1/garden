@@ -311,7 +311,7 @@ export default function PlantDetailPage() {
     router.push('/plants');
   };
 
-  const age = formatDistanceToNow(new Date(plant.plantedDate));
+  const age = plant.plantedDate ? formatDistanceToNow(new Date(plant.plantedDate)) : null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -330,9 +330,13 @@ export default function PlantDetailPage() {
             <Badge variant="outline" className="capitalize">{plant.growingMethod}</Badge>
             {plant.systemType && <Badge variant="outline">{plant.systemType}</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            Planted {format(new Date(plant.plantedDate), 'PPP')} ({age} old)
-          </p>
+          {plant.plantedDate ? (
+            <p className="text-sm text-muted-foreground mt-2">
+              Planted {format(new Date(plant.plantedDate), 'PPP')} ({age} old)
+            </p>
+          ) : plant.status === 'bank' ? (
+            <p className="text-sm text-amber-600 mt-2">In Plant Bank — not planted yet</p>
+          ) : null}
           {plant.location && (
             <p className="text-sm text-muted-foreground">Location: {plant.location}</p>
           )}

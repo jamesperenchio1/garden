@@ -279,12 +279,12 @@ export default function CalendarPage() {
                   <CardContent>
                     <div className="space-y-2">
                       {plants.slice(0, 10).map((plant) => {
-                        const age = Math.floor((Date.now() - new Date(plant.plantedDate).getTime()) / (1000 * 60 * 60 * 24));
+                        const age = plant.plantedDate ? Math.floor((Date.now() - new Date(plant.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) : null;
                         return (
                           <div key={plant.id} className="flex items-center justify-between p-2 rounded-lg border">
                             <div>
                               <p className="text-sm font-medium">{plant.name}</p>
-                              <p className="text-xs text-muted-foreground">{age} days old</p>
+                              <p className="text-xs text-muted-foreground">{age !== null ? `${age} days old` : 'In plant bank'}</p>
                             </div>
                             <Badge variant="secondary" className="text-xs capitalize">{plant.category}</Badge>
                           </div>

@@ -56,7 +56,7 @@ export function generateTasksForPlant(
   now: Date = new Date(),
   daysAhead = 14
 ): GeneratedTask[] {
-  if (!plant.id) return [];
+  if (!plant.id || !plant.plantedDate) return [];
   const tasks: GeneratedTask[] = [];
 
   const planted = new Date(plant.plantedDate);
@@ -174,7 +174,7 @@ export interface NextStep {
 }
 
 export function computeNextStep(plant: Plant, now: Date = new Date()): NextStep | null {
-  if (!plant.id) return null;
+  if (!plant.id || !plant.plantedDate) return null;
   const planted = new Date(plant.plantedDate);
   const ageDays = Math.floor((now.getTime() - planted.getTime()) / DAY);
   const window = thaiPlantingCalendar.find(

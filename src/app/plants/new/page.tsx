@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -10,6 +10,8 @@ import {
   Sparkles,
   ChevronLeft,
   Leaf,
+  Package,
+  Sprout,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,13 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { usePlants } from '@/hooks/use-plants';
 import type {
   PlantCategory,
   GrowingMethod,
+  PlantStatus,
   HealthTag,
+  GardenLocation,
 } from '@/types/plant';
 import { db } from '@/lib/db';
 import { getPlantById, type TreflePlant, type TreflePlantDetail } from '@/lib/api/plants';
@@ -40,6 +43,7 @@ import { PlantSearch } from '@/components/plants/plant-search';
 import { VarietyPicker } from '@/components/plants/variety-picker';
 import { PlantInfoPanel } from '@/components/plants/plant-info-panel';
 import { SeedPacketScanner } from '@/components/plants/seed-packet-scanner';
+import { LocationPicker } from '@/components/plants/location-picker';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +90,9 @@ export default function NewPlantPage() {
   const [mode, setMode] = useState<AddMode>('search');
   const [searchStep, setSearchStep] = useState<SearchStep>('plant');
 
+  // ── Plant bank vs planting ────────────────────────────────────────────────
+  const [plantStatus, setPlantStatus] = useState<'bank' | 'growing'>('growing');
+
   // ── Selected plant from search ────────────────────────────────────────────
   const [selectedPlant, setSelectedPlant] = useState<TreflePlant | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<TreflePlantDetail | null>(null);
@@ -97,10 +104,12 @@ export default function NewPlantPage() {
   const [category, setCategory] = useState<PlantCategory>('vegetable');
   const [growingMethod, setGrowingMethod] = useState<GrowingMethod>('soil');
   const [systemType, setSystemType] = useState('');
-  const [location, setLocation] = useState('');
+  const [locationId, setLocationId] = useState<number | undefined>(undefined);
+  const [locationText, setLocationText] = useState('');
   const [plantedDate, setPlantedDate] = useState(
     new Date().toISOString().split('T')[0],
   );
+  const [quantity, setQuantity] = useState<number | ''>('');
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -121,9 +130,7 @@ export default function NewPlantPage() {
     try {
       const detail = await getPlantById(plant.id);
       setSelectedDetail(detail);
-      if (detail) {
-        buildNotesFromDetail(detail);
-      }
+      if (detail) buildNotesFromDetail(detail);
     } finally {
       setDetailLoading(false);
     }
@@ -174,23 +181,17 @@ export default function NewPlantPage() {
 
   const handleVarietySelect = (v: TreflePlant) => {
     const vName = v.common_name ?? v.scientific_name ?? '';
-    // If the variety name differs from the base plant name, extract the variety portion
     const baseName = selectedPlant?.common_name?.toLowerCase() ?? '';
     if (vName.toLowerCase() !== baseName && vName.toLowerCase().includes(baseName)) {
       setVariety(vName.replace(new RegExp(baseName, 'i'), '').trim().replace(/^[-–,]+\s*/, ''));
     } else if (vName.toLowerCase() !== baseName) {
       setVariety(vName);
     }
-    // Fetch detail for the variety too
-    if (v.id !== selectedPlant?.id) {
-      fetchDetail(v);
-    }
+    if (v.id !== selectedPlant?.id) fetchDetail(v);
     setSearchStep('done');
   };
 
-  const handleVarietySkip = () => {
-    setSearchStep('done');
-  };
+  const handleVarietySkip = () => setSearchStep('done');
 
   const handleOcrExtracted = (data: SeedPacketData) => {
     if (data.plantName && !name.trim()) setName(data.plantName);
@@ -198,10 +199,8 @@ export default function NewPlantPage() {
 
     const noteBits: string[] = [];
     if (data.brand) noteBits.push(`Brand: ${data.brand}`);
-    if (data.daysToGermination)
-      noteBits.push(`Days to germination: ${data.daysToGermination}`);
-    if (data.daysToMaturity)
-      noteBits.push(`Days to maturity: ${data.daysToMaturity}`);
+    if (data.daysToGermination) noteBits.push(`Days to germination: ${data.daysToGermination}`);
+    if (data.daysToMaturity) noteBits.push(`Days to maturity: ${data.daysToMaturity}`);
     if (data.plantingDepth) noteBits.push(`Planting depth: ${data.plantingDepth}`);
     if (data.spacing) noteBits.push(`Spacing: ${data.spacing}`);
     if (data.rowSpacing) noteBits.push(`Row spacing: ${data.rowSpacing}`);
@@ -213,7 +212,7 @@ export default function NewPlantPage() {
     if (noteBits.length > 0) {
       const header = 'From seed packet:';
       const block = `${header}\n${noteBits.join('\n')}`;
-      setNotes((prev) => (prev.trim() ? `${prev}\n\n${block}` : block));
+      setNotes((prev: string) => (prev.trim() ? `${prev}\n\n${block}` : block));
     }
   };
 
@@ -235,32 +234,36 @@ export default function NewPlantPage() {
     }
   };
 
+  const handleLocationSelect = (loc: GardenLocation | null) => {
+    setLocationId(loc?.id);
+    if (loc) setLocationText('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
     setSaving(true);
 
+    const isBank = plantStatus === 'bank';
     const statusInfo = healthStatuses.find((s) => s.value === healthStatus);
-    const healthTags: HealthTag[] = statusInfo
-      ? [
-          {
-            category: statusInfo.category,
-            value: statusInfo.value,
-            severity: 'low',
-            addedAt: new Date(),
-          },
-        ]
-      : [];
+    const healthTags: HealthTag[] =
+      !isBank && statusInfo
+        ? [{ category: statusInfo.category, value: statusInfo.value, severity: 'low', addedAt: new Date() }]
+        : [];
+
+    const status: PlantStatus = isBank ? 'bank' : 'growing';
 
     const id = await addPlant({
       name: name.trim(),
       variety: variety.trim() || undefined,
       category,
+      status,
       growingMethod,
       systemType: growingMethod !== 'soil' ? systemType : undefined,
-      location: location.trim() || undefined,
-      plantedDate: new Date(plantedDate),
+      locationId: locationId ?? undefined,
+      location: locationText.trim() || undefined,
+      plantedDate: isBank ? undefined : new Date(plantedDate),
+      quantity: typeof quantity === 'number' && quantity > 0 ? quantity : undefined,
       healthTags,
       tags,
       notes: notes.trim() || undefined,
@@ -277,15 +280,13 @@ export default function NewPlantPage() {
           type: 'seedPacket',
           createdAt: new Date(),
         });
-      } catch {
-        /* non-fatal */
-      }
+      } catch { /* non-fatal */ }
     }
 
     if (saveAsCustom) {
       try {
         const exists = await db.customPlants
-          .filter((p) => p.name.toLowerCase() === name.trim().toLowerCase())
+          .filter((p: CustomPlant) => p.name.toLowerCase() === name.trim().toLowerCase())
           .first();
         if (!exists) {
           await db.customPlants.add({
@@ -298,15 +299,15 @@ export default function NewPlantPage() {
             createdAt: new Date(),
           });
         }
-      } catch {
-        /* non-fatal */
-      }
+      } catch { /* non-fatal */ }
     }
 
     router.push(`/plants/${id}`);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const isBank = plantStatus === 'bank';
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -320,15 +321,49 @@ export default function NewPlantPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
+          {/* ─── Bank vs Planting toggle ────────────────────────────────────── */}
+          <div className="flex rounded-lg border bg-muted p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setPlantStatus('growing')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                !isBank
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Sprout className="h-4 w-4" />
+              Plant Now
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlantStatus('bank')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                isBank
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Package className="h-4 w-4" />
+              Add to Plant Bank
+            </button>
+          </div>
+
+          {isBank && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-md">
+              Plant Bank items are seeds, seedlings, or plants you have at home but haven&apos;t planted yet.
+              You can move them to &ldquo;growing&rdquo; later.
+            </p>
+          )}
+
           {/* ─── Smart Add Hero ────────────────────────────────────────────── */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Leaf className="h-5 w-5 text-green-600" />
-                  Add Plant
+                  {isBank ? 'Add to Bank' : 'Add Plant'}
                 </CardTitle>
-                {/* Mode toggle */}
                 <div className="flex rounded-lg border bg-muted p-0.5">
                   <button
                     type="button"
@@ -375,15 +410,10 @@ export default function NewPlantPage() {
 
                   {searchStep === 'variety' && selectedPlant && (
                     <div className="space-y-3">
-                      {/* Selected plant chip */}
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
                         {selectedPlant.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={selectedPlant.image_url}
-                            alt=""
-                            className="h-8 w-8 rounded object-cover"
-                          />
+                          <img src={selectedPlant.image_url} alt="" className="h-8 w-8 rounded object-cover" />
                         ) : (
                           <div className="h-8 w-8 rounded bg-green-100 dark:bg-green-900 flex items-center justify-center">
                             <Leaf className="h-4 w-4 text-green-600" />
@@ -397,18 +427,11 @@ export default function NewPlantPage() {
                             {selectedPlant.scientific_name}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={resetSearch}
-                          className="shrink-0 h-7 text-xs"
-                        >
+                        <Button type="button" variant="ghost" size="sm" onClick={resetSearch} className="shrink-0 h-7 text-xs">
                           <ChevronLeft className="h-3 w-3 mr-1" />
                           Change
                         </Button>
                       </div>
-
                       <VarietyPicker
                         plantName={selectedPlant.common_name ?? selectedPlant.scientific_name ?? ''}
                         onSelect={handleVarietySelect}
@@ -419,15 +442,10 @@ export default function NewPlantPage() {
 
                   {searchStep === 'done' && (
                     <div className="space-y-3">
-                      {/* Summary chip */}
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
                         {selectedPlant?.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={selectedPlant.image_url}
-                            alt=""
-                            className="h-8 w-8 rounded object-cover"
-                          />
+                          <img src={selectedPlant.image_url} alt="" className="h-8 w-8 rounded object-cover" />
                         ) : (
                           <div className="h-8 w-8 rounded bg-green-100 dark:bg-green-900 flex items-center justify-center">
                             <Leaf className="h-4 w-4 text-green-600" />
@@ -435,39 +453,24 @@ export default function NewPlantPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{name}</p>
-                          {variety && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              Variety: {variety}
-                            </p>
-                          )}
+                          {variety && <p className="text-xs text-muted-foreground truncate">Variety: {variety}</p>}
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={resetSearch}
-                          className="shrink-0 h-7 text-xs"
-                        >
+                        <Button type="button" variant="ghost" size="sm" onClick={resetSearch} className="shrink-0 h-7 text-xs">
                           <ChevronLeft className="h-3 w-3 mr-1" />
                           Start over
                         </Button>
                       </div>
-
-                      {/* Detail panel */}
                       <PlantInfoPanel detail={selectedDetail} loading={detailLoading} />
                     </div>
                   )}
                 </>
               ) : (
-                <SeedPacketScanner
-                  onExtracted={handleOcrExtracted}
-                  onFileChange={setSeedPacketFile}
-                />
+                <SeedPacketScanner onExtracted={handleOcrExtracted} onFileChange={setSeedPacketFile} />
               )}
             </CardContent>
           </Card>
 
-          {/* ─── Plant Info ─────────────────────────────────────────────────── */}
+          {/* ─── Plant Details ─────────────────────────────────────────────── */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Plant Details</CardTitle>
@@ -475,27 +478,12 @@ export default function NewPlantPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-xs">
-                    Plant Name *
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g. Tomato"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
+                  <Label htmlFor="name" className="text-xs">Plant Name *</Label>
+                  <Input id="name" placeholder="e.g. Tomato" value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="variety" className="text-xs">
-                    Variety
-                  </Label>
-                  <Input
-                    id="variety"
-                    placeholder="e.g. Roma, Cherry"
-                    value={variety}
-                    onChange={(e) => setVariety(e.target.value)}
-                  />
+                  <Label htmlFor="variety" className="text-xs">Variety</Label>
+                  <Input id="variety" placeholder="e.g. Roma, Cherry" value={variety} onChange={(e) => setVariety(e.target.value)} />
                 </div>
               </div>
 
@@ -517,106 +505,109 @@ export default function NewPlantPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {isBank ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="planted" className="text-xs">
-                    Date Planted
-                  </Label>
+                  <Label htmlFor="quantity" className="text-xs">Quantity (seeds / plants)</Label>
                   <Input
-                    id="planted"
-                    type="date"
-                    value={plantedDate}
-                    onChange={(e) => setPlantedDate(e.target.value)}
+                    id="quantity"
+                    type="number"
+                    min={0}
+                    placeholder="e.g. 50"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value ? Number(e.target.value) : '')}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="location" className="text-xs">
-                    Location
-                  </Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g. Raised bed A"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ─── Growing Method ─────────────────────────────────────────────── */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Growing Method</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {growingMethods.map((method) => (
-                  <button
-                    key={method.value}
-                    type="button"
-                    onClick={() => setGrowingMethod(method.value)}
-                    className={`p-2.5 rounded-lg border text-left transition-colors ${
-                      growingMethod === method.value
-                        ? 'border-green-600 bg-green-50 dark:bg-green-950/30'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    <p
-                      className={`text-sm font-medium ${growingMethod === method.value ? 'text-green-700 dark:text-green-400' : ''}`}
-                    >
-                      {method.label}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{method.desc}</p>
-                  </button>
-                ))}
-              </div>
-
-              {growingMethod !== 'soil' && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">System Type</Label>
-                  <Select value={systemType} onValueChange={(v) => v && setSystemType(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select system type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {systemTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="planted" className="text-xs">Date Planted</Label>
+                    <Input id="planted" type="date" value={plantedDate} onChange={(e) => setPlantedDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Location</Label>
+                    <LocationPicker
+                      selectedId={locationId}
+                      onSelect={handleLocationSelect}
+                      freeText={locationText}
+                      onFreeTextChange={setLocationText}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* ─── Health + Tags (merged, compact) ────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* ─── Growing Method (only for planting) ────────────────────────── */}
+          {!isBank && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Status</CardTitle>
+                <CardTitle className="text-base">Growing Method</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {healthStatuses.map((status) => (
-                    <Button
-                      key={status.value}
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {growingMethods.map((method) => (
+                    <button
+                      key={method.value}
                       type="button"
-                      variant={healthStatus === status.value ? 'default' : 'outline'}
-                      className={`text-xs h-8 ${healthStatus === status.value ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                      onClick={() => setHealthStatus(status.value)}
-                      size="sm"
+                      onClick={() => setGrowingMethod(method.value)}
+                      className={`p-2.5 rounded-lg border text-left transition-colors ${
+                        growingMethod === method.value
+                          ? 'border-green-600 bg-green-50 dark:bg-green-950/30'
+                          : 'hover:bg-muted'
+                      }`}
                     >
-                      {status.label}
-                    </Button>
+                      <p className={`text-sm font-medium ${growingMethod === method.value ? 'text-green-700 dark:text-green-400' : ''}`}>
+                        {method.label}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{method.desc}</p>
+                    </button>
                   ))}
                 </div>
+
+                {growingMethod !== 'soil' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">System Type</Label>
+                    <Select value={systemType} onValueChange={(v) => v && setSystemType(v)}>
+                      <SelectTrigger><SelectValue placeholder="Select system type" /></SelectTrigger>
+                      <SelectContent>
+                        {systemTypes.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </CardContent>
             </Card>
+          )}
 
-            <Card>
+          {/* ─── Health + Tags ──────────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {!isBank && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Health Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {healthStatuses.map((status) => (
+                      <Button
+                        key={status.value}
+                        type="button"
+                        variant={healthStatus === status.value ? 'default' : 'outline'}
+                        className={`text-xs h-8 ${healthStatus === status.value ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                        onClick={() => setHealthStatus(status.value)}
+                        size="sm"
+                      >
+                        {status.label}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className={isBank ? 'sm:col-span-2' : ''}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Tags</CardTitle>
               </CardHeader>
@@ -626,28 +617,17 @@ export default function NewPlantPage() {
                     placeholder="Add tag…"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
                     className="h-8 text-xs"
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={addTag} className="h-8 text-xs">
-                    Add
-                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addTag} className="h-8 text-xs">Add</Button>
                 </div>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-[10px] flex items-center gap-1">
                         {tag}
-                        <button
-                          type="button"
-                          onClick={() => setTags(tags.filter((t) => t !== tag))}
-                          className="hover:text-destructive"
-                        >
+                        <button type="button" onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-destructive">
                           <X className="h-2.5 w-2.5" />
                         </button>
                       </Badge>
@@ -677,27 +657,20 @@ export default function NewPlantPage() {
           {/* ─── Options + Submit ────────────────────────────────────────────── */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={saveAsCustom}
-                onChange={(e) => setSaveAsCustom(e.target.checked)}
-                className="rounded"
-              />
+              <input type="checkbox" checked={saveAsCustom} onChange={(e) => setSaveAsCustom(e.target.checked)} className="rounded" />
               Save to my custom plants for quick reuse
             </label>
 
             <div className="flex gap-3">
               <Button
                 type="submit"
-                className="bg-green-600 hover:bg-green-700 flex-1 h-11 text-sm font-medium"
+                className={`flex-1 h-11 text-sm font-medium ${isBank ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
                 disabled={!name.trim() || saving}
               >
-                {saving ? 'Saving…' : 'Add Plant'}
+                {saving ? 'Saving…' : isBank ? 'Add to Plant Bank' : 'Add Plant'}
               </Button>
               <Link href="/plants">
-                <Button type="button" variant="outline" className="h-11">
-                  Cancel
-                </Button>
+                <Button type="button" variant="outline" className="h-11">Cancel</Button>
               </Link>
             </div>
           </div>

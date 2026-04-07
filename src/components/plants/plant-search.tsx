@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Search, Loader2, Leaf, Check } from 'lucide-react';
+import { Search, Loader2, Leaf, Check, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { searchPlants, type TreflePlant } from '@/lib/api/plants';
+import { searchPlants, type TreflePlant, type SearchMeta } from '@/lib/api/plants';
 import { db } from '@/lib/db';
 import type { CustomPlant } from '@/types/plant';
 
@@ -23,6 +23,7 @@ export function PlantSearch({ onSelect, onCustomSelect, selectedId }: PlantSearc
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function PlantSearch({ onSelect, onCustomSelect, selectedId }: PlantSearc
     if (q.length < 2) {
       setResults([]);
       setError(null);
+      setHint(null);
       return;
     }
 
@@ -39,19 +41,35 @@ export function PlantSearch({ onSelect, onCustomSelect, selectedId }: PlantSearc
       abortRef.current = ac;
       setLoading(true);
       setError(null);
+      setHint(null);
 
       try {
-        const [customs, remote] = await Promise.all([
+        let remote: TreflePlant[] = [];
+        let meta: SearchMeta | undefined;
+        const [customs, searchResult] = await Promise.all([
           db.customPlants
             .filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
             .toArray(),
           searchPlants(q, ac.signal).catch(() => {
-            if (!ac.signal.aborted) setError('Plant database unreachable — showing local only.');
-            return [] as TreflePlant[];
+            if (!ac.signal.aborted)
+              setError('Plant databases unreachable — showing local results only.');
+            return { data: [], meta: undefined };
           }),
         ]);
 
+        if ('data' in searchResult) {
+          remote = searchResult.data ?? [];
+          meta = searchResult.meta;
+        }
+
         if (!ac.signal.aborted) {
+          // Surface helpful hints about data source status
+          if (meta?.sources.trefle === 'no_token' && meta?.sources.openfarm !== 'ok') {
+            setHint('No Trefle API key configured and OpenFarm returned no results. Add TREFLE_TOKEN to .env.local for better search.');
+          } else if (meta?.sources.trefle === 'no_token') {
+            setHint('Results from OpenFarm only. Add TREFLE_TOKEN to .env.local for more plants.');
+          }
+
           setResults([
             ...customs.map((p): ResultItem => ({ source: 'custom', plant: p })),
             ...remote.map((p): ResultItem => ({
@@ -87,7 +105,14 @@ export function PlantSearch({ onSelect, onCustomSelect, selectedId }: PlantSearc
         )}
       </div>
 
-      {error && <p className="text-xs text-amber-600">{error}</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {hint && (
+        <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded-md">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{hint}</span>
+        </div>
+      )}
 
       {results.length > 0 && (
         <div className="max-h-80 overflow-y-auto border rounded-lg divide-y">

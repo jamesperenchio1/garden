@@ -1,5 +1,6 @@
 export type PlantCategory = 'vegetable' | 'herb' | 'fruit' | 'flower' | 'ornamental' | 'medicinal';
 export type GrowingMethod = 'soil' | 'hydroponic' | 'aeroponic' | 'aquaponic';
+export type PlantStatus = 'bank' | 'seedling' | 'growing' | 'harvested' | 'dormant' | 'deceased';
 export type HealthTagCategory = 'overall' | 'pest' | 'disease' | 'nutrient' | 'environmental';
 export type HealthSeverity = 'low' | 'medium' | 'high';
 export type PhotoType = 'plant' | 'seedPacket';
@@ -17,15 +18,18 @@ export interface Plant {
   name: string;
   variety?: string;
   category: PlantCategory;
+  status: PlantStatus;
   growingMethod: GrowingMethod;
   systemType?: string;
-  location?: string;
-  plantedDate: Date;
+  locationId?: number;
+  location?: string; // kept for backwards compat / free-text fallback
+  plantedDate?: Date; // optional now — bank items won't have one
   healthTags: HealthTag[];
   tags: string[];
   trefleId?: number;
   perenualId?: number;
   seedPacketPhotoId?: number;
+  quantity?: number; // how many seeds/plants in bank
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -96,4 +100,14 @@ export interface YieldReference {
     veryHigh: number;
   };
   tips: string;
+}
+
+// ── Locations ───────────────────────────────────────────────────────────────
+
+export interface GardenLocation {
+  id?: number;
+  name: string; // e.g. "Raised Bed A"
+  zone?: string; // e.g. "Backyard", "Indoor", "Greenhouse"
+  description?: string;
+  createdAt: Date;
 }
