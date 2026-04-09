@@ -160,7 +160,7 @@ export default function CompanionsPage() {
           ) : (
             <>
               {/* Summary stats */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <Card>
                   <CardContent className="p-4 text-center">
                     <p className="text-2xl font-bold text-green-600">{gardenAnalysis.good.length}</p>
@@ -451,30 +451,31 @@ export default function CompanionsPage() {
         <TabsContent value="grid" className="mt-4">
           <Card>
             <CardHeader className="space-y-3">
-              <div className="flex items-start justify-between flex-wrap gap-3">
+              <div className="space-y-3">
                 <div>
                   <CardTitle>Companion Planting Grid</CardTitle>
-                  <CardDescription>Hover to trace a pair. Click to open it in Quick Lookup.</CardDescription>
+                  <CardDescription className="hidden sm:block">Hover to trace a pair. Click to open it in Quick Lookup.</CardDescription>
+                  <CardDescription className="sm:hidden">Tap a cell to look up the pair.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="relative">
+                  <div className="relative flex-1 min-w-[140px]">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       placeholder="Filter plants…"
                       value={gridFilter}
                       onChange={(e) => setGridFilter(e.target.value)}
-                      className="pl-7 h-8 w-44 text-xs"
+                      className="pl-7 h-8 text-xs"
                     />
                   </div>
                   <Button
                     variant={onlyMyPlants ? 'default' : 'outline'}
                     size="sm"
-                    className="h-8 text-xs"
+                    className="h-8 text-xs shrink-0"
                     disabled={myPlantNames.size === 0}
                     onClick={() => setOnlyMyPlants((v) => !v)}
                   >
                     <Leaf className="h-3 w-3 mr-1" />
-                    Only my plants ({myPlantNames.size})
+                    My plants ({myPlantNames.size})
                   </Button>
                 </div>
               </div>
@@ -489,8 +490,8 @@ export default function CompanionsPage() {
               {gridPlants.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">No plants match your filters.</p>
               ) : (
-                <div className="overflow-auto max-h-[70vh] border rounded-md">
-                  <table className="text-xs border-collapse">
+                <div className="overflow-auto max-h-[70vh] border rounded-md -mx-4 sm:mx-0">
+                  <table className="text-xs border-collapse min-w-max">
                     <thead>
                       <tr>
                         <th className="sticky left-0 top-0 z-20 bg-background border-b border-r p-1" />

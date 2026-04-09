@@ -413,7 +413,7 @@ export default function NewPlantPage() {
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
                         {selectedPlant.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={selectedPlant.image_url} alt="" className="h-8 w-8 rounded object-cover" />
+                          <img src={selectedPlant.image_url} alt={selectedPlant.common_name ?? selectedPlant.scientific_name ?? 'Plant'} className="h-8 w-8 rounded object-cover" />
                         ) : (
                           <div className="h-8 w-8 rounded bg-green-100 dark:bg-green-900 flex items-center justify-center">
                             <Leaf className="h-4 w-4 text-green-600" />
@@ -445,7 +445,7 @@ export default function NewPlantPage() {
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
                         {selectedPlant?.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={selectedPlant.image_url} alt="" className="h-8 w-8 rounded object-cover" />
+                          <img src={selectedPlant.image_url} alt={name || 'Selected plant'} className="h-8 w-8 rounded object-cover" />
                         ) : (
                           <div className="h-8 w-8 rounded bg-green-100 dark:bg-green-900 flex items-center justify-center">
                             <Leaf className="h-4 w-4 text-green-600" />
@@ -627,7 +627,7 @@ export default function NewPlantPage() {
                     {tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-[10px] flex items-center gap-1">
                         {tag}
-                        <button type="button" onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-destructive">
+                        <button type="button" onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-destructive" aria-label={`Remove tag ${tag}`}>
                           <X className="h-2.5 w-2.5" />
                         </button>
                       </Badge>

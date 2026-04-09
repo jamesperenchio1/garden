@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -109,17 +109,27 @@ export default function GalleryPage() {
     }
   };
 
-  // Full-size URL for lightbox
+  // Full-size URL for lightbox — use a ref to avoid stale closure leaks
   const [fullUrl, setFullUrl] = useState<string | null>(null);
+  const fullUrlRef = useRef<string | null>(null);
   useEffect(() => {
+    if (fullUrlRef.current) {
+      URL.revokeObjectURL(fullUrlRef.current);
+      fullUrlRef.current = null;
+    }
     if (!selectedPhoto) {
-      if (fullUrl) URL.revokeObjectURL(fullUrl);
       setFullUrl(null);
       return;
     }
     const url = URL.createObjectURL(selectedPhoto.photo.blob);
+    fullUrlRef.current = url;
     setFullUrl(url);
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      if (fullUrlRef.current) {
+        URL.revokeObjectURL(fullUrlRef.current);
+        fullUrlRef.current = null;
+      }
+    };
   }, [selectedPhoto?.photo.id]);
 
   return (
@@ -238,6 +248,7 @@ export default function GalleryPage() {
           <button
             className="absolute top-4 right-4 text-white/70 hover:text-white z-10"
             onClick={() => setSelectedPhoto(null)}
+            aria-label="Close lightbox"
           >
             <X className="h-6 w-6" />
           </button>
@@ -247,6 +258,7 @@ export default function GalleryPage() {
             <button
               className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white z-10 p-2"
               onClick={(e) => { e.stopPropagation(); goPrev(); }}
+              aria-label="Previous photo"
             >
               <ChevronLeft className="h-8 w-8" />
             </button>
@@ -255,6 +267,7 @@ export default function GalleryPage() {
             <button
               className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white z-10 p-2"
               onClick={(e) => { e.stopPropagation(); goNext(); }}
+              aria-label="Next photo"
             >
               <ChevronRight className="h-8 w-8" />
             </button>

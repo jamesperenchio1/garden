@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale, Pencil, Check, Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { extractSeedPacketData } from '@/lib/ocr';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/db';
@@ -192,7 +193,7 @@ export default function PlantDetailPage() {
         setPlant({ ...plant, ...updates });
       }
     } catch (err) {
-      console.error('Seed packet OCR failed:', err);
+      toast.error('Seed packet scan failed. Try a clearer photo or check your connection.');
     } finally {
       setSeedPacketOcrRunning(false);
       if (seedPacketInputRef.current) seedPacketInputRef.current.value = '';

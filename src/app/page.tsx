@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Leaf, Droplets, Cloud, CalendarDays, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Leaf, Droplets, Cloud, CalendarDays, AlertTriangle, CheckCircle, ImageIcon, Users, MessageSquarePlus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useWeather } from '@/hooks/use-weather';
 import { getWeatherDescription, getWeatherIcon } from '@/lib/api/weather';
@@ -263,6 +263,27 @@ export default function DashboardPage() {
             >
               <Droplets className="h-4 w-4" />
               Design System
+            </Link>
+            <Link
+              href="/gallery"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
+            >
+              <ImageIcon className="h-4 w-4" />
+              Gallery
+            </Link>
+            <Link
+              href="/companions"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
+            >
+              <Users className="h-4 w-4" />
+              Companions
+            </Link>
+            <Link
+              href="/features"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              Feedback
             </Link>
           </div>
         </CardContent>
