@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale, Pencil, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, Trash2, X, Upload, Leaf, TrendingUp, Scale, Pencil, Check, Loader2, Sprout, Flower2, Cherry, CalendarClock } from 'lucide-react';
 import { Label } from '@/components/ui/label';
-import { extractSeedPacketData } from '@/lib/ocr';
+import { extractSeedPacketData, validateSeedPacketData } from '@/lib/ocr';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/db';
@@ -26,6 +26,19 @@ import {
   YIELD_RATING_COLORS,
 } from '@/hooks/use-yields';
 import type { Plant, HealthTag, HealthTagCategory, HealthSeverity, YieldRating } from '@/types/plant';
+import { predictPlantGrowth, getStageDescription } from '@/lib/plant-predictions';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  ReferenceLine,
+} from 'recharts';
 
 export default function PlantDetailPage() {
   const params = useParams();
@@ -40,6 +53,7 @@ export default function PlantDetailPage() {
   const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({});
   const [seedPacketUrl, setSeedPacketUrl] = useState<string | null>(null);
   const [seedPacketOcrRunning, setSeedPacketOcrRunning] = useState(false);
+  const [seedPacketOcrResult, setSeedPacketOcrResult] = useState<ReturnType<typeof validateSeedPacketData> | null>(null);
 
   // Editable tags/notes state
   const [editingTags, setEditingTags] = useState(false);
@@ -173,19 +187,30 @@ export default function PlantDetailPage() {
 
     // Run OCR in the background — prefill variety / notes if we can pull them out.
     setSeedPacketOcrRunning(true);
+    setSeedPacketOcrResult(null);
     try {
       const data = await extractSeedPacketData(file);
+      const validation = validateSeedPacketData(data);
+      setSeedPacketOcrResult(validation);
+
       const updates: Partial<Plant> = {};
       if (data.variety && !plant.variety) updates.variety = data.variety;
       const ocrBits: string[] = [];
-      if (data.daysToMaturity) ocrBits.push(`Days to maturity: ${data.daysToMaturity}`);
-      if (data.daysToGermination) ocrBits.push(`Germination: ${data.daysToGermination} days`);
+      if (data.plantName) ocrBits.push(`Packet: ${data.plantName}`);
+      if (data.scientificName) ocrBits.push(`Scientific: ${data.scientificName}`);
+      if (data.daysToMaturity) ocrBits.push(`Days to maturity: ${data.daysToMaturity}${data.daysToMaturityRange ? ` (${data.daysToMaturityRange[0]}-${data.daysToMaturityRange[1]})` : ''}`);
+      if (data.daysToGermination) ocrBits.push(`Germination: ${data.daysToGermination}${data.daysToGerminationRange ? ` (${data.daysToGerminationRange[0]}-${data.daysToGerminationRange[1]})` : ''} days`);
       if (data.plantingDepth) ocrBits.push(`Planting depth: ${data.plantingDepth}`);
       if (data.spacing) ocrBits.push(`Spacing: ${data.spacing}`);
       if (data.sunRequirement) ocrBits.push(`Sun: ${data.sunRequirement}`);
+      if (data.temperatureRange) ocrBits.push(`Temp: ${data.temperatureRange}`);
+      if (data.weight) ocrBits.push(`Weight: ${data.weight}`);
+      if (data.lotNumber) ocrBits.push(`Lot: ${data.lotNumber}`);
+      if (data.expiryDate) ocrBits.push(`Expiry: ${data.expiryDate}`);
+      if (data.company) ocrBits.push(`Brand: ${data.company}`);
       if (ocrBits.length > 0) {
         const existing = plant.notes ? `${plant.notes}\n\n` : '';
-        updates.notes = `${existing}From seed packet:\n${ocrBits.join('\n')}`;
+        updates.notes = `${existing}From seed packet (OCR confidence: ${Math.round(data.confidence)}%):\n${ocrBits.join('\n')}`;
       }
       if (Object.keys(updates).length > 0) {
         await db.plants.update(plantId, { ...updates, updatedAt: new Date() });
@@ -193,6 +218,7 @@ export default function PlantDetailPage() {
       }
     } catch (err) {
       console.error('Seed packet OCR failed:', err);
+      setSeedPacketOcrResult({ valid: false, warnings: ['OCR processing failed. Please enter details manually.'] });
     } finally {
       setSeedPacketOcrRunning(false);
       if (seedPacketInputRef.current) seedPacketInputRef.current.value = '';
@@ -299,6 +325,7 @@ export default function PlantDetailPage() {
   };
 
   const overallRating = calculateYieldRating(totalGrams, yieldRef);
+  const growthPrediction = plant ? predictPlantGrowth(plant.name, new Date(plant.plantedDate)) : null;
 
   const handleDelete = async () => {
     if (!confirm('Delete this plant and all its photos and logs?')) return;
@@ -676,11 +703,153 @@ export default function PlantDetailPage() {
                 </div>
               )}
 
+              {/* Yield Chart */}
+              {yieldRecords.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Harvest Trend</p>
+                  <div className="h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[...yieldRecords].reverse().map((r, i) => ({
+                          name: `H${i + 1}`,
+                          grams: r.amountGrams,
+                          date: format(new Date(r.harvestedAt), 'MM/dd'),
+                        }))}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12 }}
+                          formatter={(value) => [`${value}g`, 'Amount']}
+                          labelFormatter={(label, payload) => (payload?.[0]?.payload as { date?: string })?.date ?? label}
+                        />
+                        <Bar dataKey="grams" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                        {yieldRef && (
+                          <ReferenceLine
+                            y={yieldRef.expectedYieldGramsPerPlant / yieldRef.harvestsPerSeason}
+                            stroke="#f59e0b"
+                            strokeDasharray="4 4"
+                            label={{ value: 'Avg/Target', fontSize: 10, fill: '#f59e0b' }}
+                          />
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Cumulative Yield vs Expected */}
+              {yieldRecords.length > 0 && yieldRef && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Cumulative vs Expected</p>
+                  <div className="h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={yieldRecords.reduce<{ name: string; cumulative: number; expected: number }[]>((acc, r, i) => {
+                          const cumulative = (acc[i - 1]?.cumulative ?? 0) + r.amountGrams;
+                          const expected = ((i + 1) / yieldRef.harvestsPerSeason) * yieldRef.expectedYieldGramsPerPlant;
+                          acc.push({
+                            name: format(new Date(r.harvestedAt), 'MM/dd'),
+                            cumulative,
+                            expected: Math.round(expected),
+                          });
+                          return acc;
+                        }, [])}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip contentStyle={{ fontSize: 12 }} />
+                        <Line type="monotone" dataKey="cumulative" stroke="#16a34a" strokeWidth={2} dot={false} name="Actual" />
+                        <Line type="monotone" dataKey="expected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Expected" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-muted-foreground mt-2">
                 {harvestCount} harvest{harvestCount !== 1 ? 's' : ''} total
               </p>
             </CardContent>
           </Card>
+
+          {/* Growth Prediction */}
+          {growthPrediction && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sprout className="h-4 w-4 text-green-600" />
+                  Growth Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Current stage */}
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <p className="text-xs text-green-700 font-medium uppercase tracking-wide">Current Stage</p>
+                  <p className="text-sm font-semibold text-green-900 capitalize">{growthPrediction.currentStage}</p>
+                  <p className="text-xs text-green-700 mt-0.5">{getStageDescription(growthPrediction.currentStage)}</p>
+                </div>
+
+                {/* Next milestone */}
+                {growthPrediction.daysToNextMilestone > 0 && (
+                  <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg">
+                    <CalendarClock className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-amber-700">
+                        {growthPrediction.nextMilestoneLabel} in ~{growthPrediction.daysToNextMilestone} days
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Predicted dates */}
+                <div className="space-y-1.5 text-xs">
+                  {growthPrediction.predictedFloweringDate && (
+                    <div className="flex items-center justify-between p-1.5 rounded bg-muted/50">
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Flower2 className="h-3 w-3" /> Predicted flowering
+                      </span>
+                      <span className="font-medium">{format(growthPrediction.predictedFloweringDate, 'MMM d, yyyy')}</span>
+                    </div>
+                  )}
+                  {growthPrediction.predictedFruitingDate && (
+                    <div className="flex items-center justify-between p-1.5 rounded bg-muted/50">
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Cherry className="h-3 w-3" /> Predicted fruiting
+                      </span>
+                      <span className="font-medium">{format(growthPrediction.predictedFruitingDate, 'MMM d, yyyy')}</span>
+                    </div>
+                  )}
+                  {growthPrediction.predictedFirstHarvestDate && (
+                    <div className="flex items-center justify-between p-1.5 rounded bg-muted/50">
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Leaf className="h-3 w-3" /> First harvest
+                      </span>
+                      <span className="font-medium">{format(growthPrediction.predictedFirstHarvestDate, 'MMM d, yyyy')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Milestone progress bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>Germination</span>
+                    <span>Harvest</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(100, (growthPrediction.milestones.find((m) => m.stage === growthPrediction.currentStage)?.dayEnd ?? 0) / (growthPrediction.milestones[growthPrediction.milestones.length - 1].dayEnd) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tags */}
           <Card>
@@ -811,6 +980,16 @@ export default function PlantDetailPage() {
                       </div>
                     )}
                   </div>
+                  {seedPacketOcrResult && !seedPacketOcrResult.valid && (
+                    <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                      <p className="text-xs font-medium text-amber-800 mb-1">OCR Warnings:</p>
+                      <ul className="text-xs text-amber-700 space-y-0.5">
+                        {seedPacketOcrResult.warnings.map((w, i) => (
+                          <li key={i}>• {w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

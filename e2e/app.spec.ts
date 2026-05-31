@@ -60,6 +60,16 @@ test.describe('Garden Companion App', () => {
     await page.goto('/soil');
     await expect(page.getByRole('tab', { name: 'Garden Beds' })).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/soil.png', fullPage: true });
+
+    // Navigate to Sun Map
+    await page.goto('/sunmap');
+    await expect(page.getByRole('heading', { name: /Sun & Shadow Map/i })).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/sunmap.png', fullPage: true });
+
+    // Navigate to Smart Devices
+    await page.goto('/iot');
+    await expect(page.getByRole('heading', { name: /Smart Devices/i })).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/iot.png', fullPage: true });
   });
 
   test('can create a plant and it persists after reload', async ({ page }) => {

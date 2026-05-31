@@ -6,6 +6,7 @@ import type {
   Vec3,
 } from '@/types/system';
 import { normaliseComponent } from '@/types/system';
+import type { FlowIssue } from '@/types/system';
 
 export type DesignerTheme = 'light' | 'dark';
 
@@ -73,6 +74,7 @@ interface DesignerState {
 
   clearAll: () => void;
   loadComponents: (components: SystemComponent[]) => void;
+  validateDesign: () => FlowIssue[];
 
   setTheme: (theme: DesignerTheme) => void;
 
@@ -174,6 +176,81 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       selectedComponentId: null,
       connectMode: { active: false, fromId: null, waypoints: [] },
     }),
+
+  validateDesign: () => {
+    const { components } = get();
+    const issues: FlowIssue[] = [];
+    const byId = Object.fromEntries(components.map((c) => [c.id, c]));
+
+    for (const comp of components) {
+      // Pump must be below or at the same level as the reservoir it feeds from
+      if (comp.type === 'pump') {
+        const sourceConn = components.find((c) =>
+          c.connections.some((conn) => conn.toId === comp.id)
+        );
+        if (sourceConn && sourceConn.type === 'reservoir' && comp.position.y > sourceConn.position.y) {
+          issues.push({
+            type: 'pressure_drop',
+            componentId: comp.id,
+            severity: 'critical',
+            description: `Pump is above its source reservoir. Water cannot flow uphill without a submersible pump.`,
+          });
+        }
+      }
+
+      // Reservoir must be above grow beds it feeds (for gravity systems)
+      if (comp.type === 'reservoir') {
+        for (const conn of comp.connections) {
+          const target = byId[conn.toId];
+          if (target && (target.type === 'grow_bed' || target.type === 'vertical_tower') && comp.position.y < target.position.y) {
+            issues.push({
+              type: 'dead_spot',
+              componentId: comp.id,
+              severity: 'warning',
+              description: `Reservoir is below ${target.type}. Gravity feed requires reservoir to be higher.`,
+            });
+          }
+        }
+      }
+
+      // Fish tank must have an air stone
+      if (comp.type === 'fish_tank') {
+        const hasAirStone = components.some(
+          (c) => c.type === 'air_stone' && comp.connections.some((conn) => conn.toId === c.id)
+        );
+        if (!hasAirStone) {
+          issues.push({
+            type: 'dead_spot',
+            componentId: comp.id,
+            severity: 'warning',
+            description: 'Fish tank has no air stone. Aquatic life requires oxygenation.',
+          });
+        }
+      }
+
+      // Valve should not be the only connection between pump and grow beds
+      if (comp.type === 'valve') {
+        const hasUpstreamPump = components.some(
+          (c) => c.type === 'pump' && c.connections.some((conn) => {
+            // Simple check: pump connects to something that connects to valve
+            const direct = conn.toId === comp.id;
+            const indirect = components.some((mid) => mid.id === conn.toId && mid.connections.some((m) => m.toId === comp.id));
+            return direct || indirect;
+          })
+        );
+        if (!hasUpstreamPump && comp.connections.length > 0) {
+          issues.push({
+            type: 'pressure_drop',
+            componentId: comp.id,
+            severity: 'warning',
+            description: 'Valve has no upstream pump. Gravity feed only — verify flow is sufficient.',
+          });
+        }
+      }
+    }
+
+    return issues;
+  },
 
   loadComponents: (components) =>
     set({

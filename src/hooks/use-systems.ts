@@ -13,10 +13,11 @@ export function useSystems() {
     setLoading(true);
     const allSystems = await db.systems.orderBy('createdAt').reverse().toArray();
     // Normalise legacy systems where connections were stored as string[].
-    for (const sys of allSystems) {
-      sys.components = (sys.components ?? []).map(normaliseComponent);
-    }
-    setSystems(allSystems);
+    const normalised = allSystems.map((sys) => ({
+      ...sys,
+      components: (sys.components ?? []).map(normaliseComponent),
+    }));
+    setSystems(normalised);
     setLoading(false);
   }, []);
 

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useRef } from 'react';
 import { OrbitControls, Grid, PivotControls } from '@react-three/drei';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SystemComponent, Vec3 } from '@/types/system';
 import { useDesignerStore, type DesignerTheme } from '@/store/designer-store';
@@ -18,6 +18,7 @@ import { DripEmitter } from './components/drip-emitter';
 import { WickingMaterial } from './components/wicking-material';
 import { VerticalTower } from './components/vertical-tower';
 import { FishTank } from './components/fish-tank';
+import { Timer } from './components/timer';
 
 const GRID_SIZE = 0.5; // snap grid unit in world units
 
@@ -60,6 +61,7 @@ function ComponentRenderer({ component, isSelected, onSelect }: ComponentRendere
     wicking_material: <WickingMaterial {...sharedProps} />,
     vertical_tower: <VerticalTower {...sharedProps} />,
     fish_tank: <FishTank {...sharedProps} />,
+    timer: <Timer />,
   };
 
   const inner = (
@@ -172,10 +174,10 @@ interface FloorPlaneProps {
 
 function FloorPlane({ onFloorClick }: FloorPlaneProps) {
   const handleClick = useCallback(
-    (e: any) => {
-      e.stopPropagation?.();
+    (e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation();
       if (e.point) {
-        onFloorClick(snapPoint(e.point as THREE.Vector3));
+        onFloorClick(snapPoint(e.point));
       }
     },
     [onFloorClick]

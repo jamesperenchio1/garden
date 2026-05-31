@@ -312,7 +312,7 @@ export function BedDesigner({ bed, onPlantsChange }: BedDesignerProps) {
 
   // ── pointer event handlers ────────────────────────────────────────────────
 
-  function getCanvasXY(e: React.PointerEvent<HTMLCanvasElement>) {
+  function getCanvasXY(e: { clientX: number; clientY: number }) {
     const rect = canvasRef.current!.getBoundingClientRect();
     return {
       cx: e.clientX - rect.left,
@@ -379,7 +379,7 @@ export function BedDesigner({ bed, onPlantsChange }: BedDesignerProps) {
   // ── wheel zoom ────────────────────────────────────────────────────────────
   function handleWheel(e: React.WheelEvent<HTMLCanvasElement>) {
     e.preventDefault();
-    const { cx, cy } = getCanvasXY(e as unknown as React.PointerEvent<HTMLCanvasElement>);
+    const { cx, cy } = getCanvasXY(e);
     const delta = e.deltaY < 0 ? 1.1 : 0.9;
     setScale((prev) => {
       const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev * delta));

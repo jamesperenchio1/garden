@@ -18,6 +18,7 @@ interface FlowEdge {
   gravityAssisted: boolean;
   /** Effective tube length in metres used for the calculation. */
   lengthMetres: number;
+  waypoints: { x: number; y: number; z: number }[];
   issue?: FlowIssue;
 }
 
@@ -104,7 +105,7 @@ function computeFlowEdges(components: SystemComponent[]): FlowEdge[] {
         };
       }
 
-      edges.push({ from: comp, to: target, flowRate, gravityAssisted, lengthMetres, issue });
+      edges.push({ from: comp, to: target, flowRate, gravityAssisted, lengthMetres, waypoints: conn.waypoints ?? [], issue });
     }
   }
 
@@ -139,14 +140,18 @@ function ParticleTrail({ edge }: ParticleTrailProps) {
     return new THREE.Color('#ef4444'); // red
   }, [edge.flowRate]);
 
-  const fromVec = useMemo(
-    () => new THREE.Vector3(edge.from.position.x, edge.from.position.y + 0.05, edge.from.position.z),
-    [edge.from]
-  );
-  const toVec = useMemo(
-    () => new THREE.Vector3(edge.to.position.x, edge.to.position.y + 0.05, edge.to.position.z),
-    [edge.to]
-  );
+  // Build path from waypoints so particles follow the actual routed pipe
+  const pathPoints = useMemo(() => {
+    const pts = getConnectionPath(edge.from, edge.to, edge.waypoints);
+    return pts.map((p) => new THREE.Vector3(p.x, p.y + 0.05, p.z));
+  }, [edge.from, edge.to, edge.waypoints]);
+
+  const curve = useMemo(() => {
+    if (pathPoints.length === 2) {
+      return new THREE.LineCurve3(pathPoints[0], pathPoints[1]);
+    }
+    return new THREE.CatmullRomCurve3(pathPoints, false, 'catmullrom', 0.5);
+  }, [pathPoints]);
 
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
@@ -155,9 +160,10 @@ function ParticleTrail({ edge }: ParticleTrailProps) {
 
     offsets.forEach((offset, i) => {
       const alpha = ((offset + t * edge.flowRate * 0.4) % 1 + 1) % 1;
-      dummy.position.lerpVectors(fromVec, toVec, alpha);
-      // slight arc: lift midpoint a bit
-      dummy.position.y += Math.sin(alpha * Math.PI) * 0.12;
+      const pos = curve.getPointAt(alpha);
+      dummy.position.copy(pos);
+      // slight arc: lift midpoint a bit for visual appeal
+      dummy.position.y += Math.sin(alpha * Math.PI) * 0.08;
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       mesh.setColorAt(i, colour);

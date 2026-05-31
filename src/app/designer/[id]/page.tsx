@@ -18,6 +18,8 @@ import {
   Link2,
   Sun,
   Moon,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { useDesignerStore } from '@/store/designer-store';
 import { useSystems } from '@/hooks/use-systems';
@@ -90,12 +92,14 @@ export default function DesignerEditorPage() {
     setTheme,
     connectMode,
     cancelConnectMode,
+    validateDesign,
   } = useDesignerStore();
 
   const [showGrid, setShowGrid] = useState(true);
   const [showFlow, setShowFlow] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingType, setPendingType] = useState<ComponentType | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
 
   const { pushSnapshot, popSnapshot } = useHistory(components);
 
@@ -226,6 +230,9 @@ export default function DesignerEditorPage() {
   }, [handleSave, handleUndo, selectComponent, selectedComponentId, handleRemoveComponent, cancelConnectMode]);
 
   const currentSystem = systems.find((s) => s.id === systemId);
+  const validationIssues = validateDesign();
+  const hasCritical = validationIssues.some((i) => i.severity === 'critical');
+  const hasWarnings = validationIssues.some((i) => i.severity === 'warning');
 
   if (!systemsLoading && !currentSystem) {
     return (
@@ -316,6 +323,20 @@ export default function DesignerEditorPage() {
         </Button>
 
         <Button
+          variant={showValidation ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setShowValidation((v) => !v)}
+          className={`h-7 gap-1 ${hasCritical ? 'text-red-600' : hasWarnings ? 'text-amber-600' : ''}`}
+          title="Validate design"
+        >
+          {hasCritical || hasWarnings ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          <span className="hidden sm:inline">Validate</span>
+          {validationIssues.length > 0 && (
+            <span className="text-[10px] bg-muted px-1 rounded">{validationIssues.length}</span>
+          )}
+        </Button>
+
+        <Button
           variant="default"
           size="sm"
           onClick={handleSave}
@@ -366,14 +387,45 @@ export default function DesignerEditorPage() {
           />
         </div>
 
-        {/* Right: Selected component quick info */}
-        <div className="w-52 flex-shrink-0 border-l bg-background overflow-hidden">
-          <SelectedComponentPanel
-            components={components}
-            selectedComponentId={selectedComponentId}
-            onUpdate={handleUpdateComponent}
-            onRemove={handleRemoveComponent}
-          />
+        {/* Right: Selected component quick info + validation */}
+        <div className="w-52 flex-shrink-0 border-l bg-background overflow-hidden flex flex-col">
+          {showValidation && (
+            <div className="p-3 border-b">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Validation
+              </p>
+              {validationIssues.length === 0 ? (
+                <div className="flex items-center gap-1.5 text-xs text-green-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Design looks good
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {validationIssues.map((issue, i) => (
+                    <div
+                      key={i}
+                      className={`text-[10px] p-1.5 rounded ${
+                        issue.severity === 'critical'
+                          ? 'bg-red-50 text-red-800 border border-red-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      <span className="font-semibold uppercase">{issue.severity}</span>
+                      <p className="mt-0.5">{issue.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
+            <SelectedComponentPanel
+              components={components}
+              selectedComponentId={selectedComponentId}
+              onUpdate={handleUpdateComponent}
+              onRemove={handleRemoveComponent}
+            />
+          </div>
         </div>
       </div>
     </div>

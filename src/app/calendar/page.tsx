@@ -475,7 +475,7 @@ export default function CalendarPage() {
                     {day}
                   </div>
                 ))}
-                {Array.from({ length: 30 }, (_, i) => {
+                {Array.from({ length: new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate() }, (_, i) => {
                   const date = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), i + 1);
                   if (date.getMonth() !== selectedDate.getMonth()) return null;
                   const phase = getMoonPhase(date);

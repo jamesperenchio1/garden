@@ -23,10 +23,18 @@ export async function getOverdueTasks(): Promise<Task[]> {
 }
 
 export async function completeTask(taskId: number): Promise<void> {
+  const task = await db.tasks.get(taskId);
+  if (!task) return;
+
   await db.tasks.update(taskId, {
     completed: true,
     completedAt: new Date(),
   });
+
+  // Auto-schedule next occurrence for recurring tasks
+  if (task.recurring) {
+    await scheduleRecurringTask(task);
+  }
 }
 
 export async function scheduleRecurringTask(task: Task): Promise<void> {

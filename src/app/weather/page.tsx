@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Bell, CheckCircle } from 'lucide-react';
 import { useWeather } from '@/hooks/use-weather';
 import { useAppStore } from '@/store/app-store';
 import { getWeatherDescription, getWeatherIcon } from '@/lib/api/weather';
+import { generateWeatherAlerts, type WeatherAlert } from '@/lib/weather-alerts';
 import { evaluateThaiHazards } from '@/data/thai-hazards';
 import { getMoonPhase, getMoonPhaseEmoji, getMoonPhaseName } from '@/lib/api/moon';
 import { format } from 'date-fns';
@@ -27,6 +28,7 @@ export default function WeatherPage() {
   const hazards = weather
     ? evaluateThaiHazards(today, weather.current.temperature, weather.current.precipitation, weather.current.humidity, weather.current.windSpeed)
     : [];
+  const alerts = weather ? generateWeatherAlerts(weather) : [];
 
   if (loading) {
     return (
@@ -56,6 +58,52 @@ export default function WeatherPage() {
 
   return (
     <div className="space-y-6">
+      {/* Weather Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Farming Alerts ({alerts.length})
+          </h2>
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`p-3 rounded-lg border flex items-start gap-3 ${
+                alert.severity === 'critical'
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : alert.severity === 'warning'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+            >
+              <AlertTriangle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
+                alert.severity === 'critical' ? 'text-red-600' : alert.severity === 'warning' ? 'text-amber-600' : 'text-blue-600'
+              }`} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">{alert.title}</p>
+                  <Badge
+                    variant={alert.severity === 'critical' ? 'destructive' : alert.severity === 'warning' ? 'default' : 'secondary'}
+                    className="text-[10px]"
+                  >
+                    {alert.severity}
+                  </Badge>
+                </div>
+                <p className="text-xs opacity-90 mt-0.5">{alert.description}</p>
+                <p className="text-xs font-medium mt-1 opacity-80">Action: {alert.action}</p>
+                {alert.affectedPlants && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {alert.affectedPlants.map((p) => (
+                      <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Current Conditions */}
       <Card>
         <CardHeader className="pb-3">

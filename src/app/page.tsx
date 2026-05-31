@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Leaf, Droplets, Cloud, CalendarDays, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Leaf, Droplets, Cloud, CalendarDays, AlertTriangle, CheckCircle, Bell } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useWeather } from '@/hooks/use-weather';
 import { getWeatherDescription, getWeatherIcon } from '@/lib/api/weather';
+import { generateWeatherAlerts } from '@/lib/weather-alerts';
 import { getOverdueTasks, getUpcomingTasks } from '@/lib/notifications';
 import type { Plant } from '@/types/plant';
 import type { Task } from '@/types/calendar';
@@ -45,6 +46,8 @@ export default function DashboardPage() {
   const attentionCount = plants.filter(
     (p) => p.healthTags?.some((t) => t.severity === 'high')
   ).length;
+
+  const weatherAlerts = generateWeatherAlerts(weather);
 
   return (
     <div className="space-y-6">
@@ -110,6 +113,33 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weather Alerts */}
+      {weatherAlerts.length > 0 && (
+        <div className="space-y-2">
+          {weatherAlerts.slice(0, 3).map((alert) => (
+            <div
+              key={alert.id}
+              className={`p-3 rounded-lg border flex items-start gap-3 ${
+                alert.severity === 'critical'
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : alert.severity === 'warning'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+            >
+              <AlertTriangle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
+                alert.severity === 'critical' ? 'text-red-600' : alert.severity === 'warning' ? 'text-amber-600' : 'text-blue-600'
+              }`} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{alert.title}</p>
+                <p className="text-xs opacity-90 mt-0.5">{alert.description}</p>
+                <p className="text-xs font-medium mt-1 opacity-80">Action: {alert.action}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -11,6 +11,8 @@ import {
   Users,
   FlaskConical,
   Mountain,
+  Sun,
+  Cpu,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -34,6 +36,8 @@ const navItems = [
   { title: 'Companions', href: '/companions', icon: Users },
   { title: 'Nutrients', href: '/nutrients', icon: FlaskConical },
   { title: 'Soil Planner', href: '/soil', icon: Mountain },
+  { title: 'Sun Map', href: '/sunmap', icon: Sun },
+  { title: 'Smart Devices', href: '/iot', icon: Cpu },
 ];
 
 export function AppSidebar() {

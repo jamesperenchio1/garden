@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePlants } from '@/hooks/use-plants';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Search, Leaf, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect, useState as useStatePlain } from 'react';
 import { db } from '@/lib/db';
 import { YIELD_RATING_LABELS, YIELD_RATING_COLORS, calculateYieldRating } from '@/hooks/use-yields';
 import type { PlantCategory, GrowingMethod, YieldRating, YieldReference } from '@/types/plant';
@@ -23,9 +22,9 @@ export default function PlantsPage() {
   const [methodFilter, setMethodFilter] = useState<string>('all');
 
   // Load yield totals and references from DB
-  const [yieldTotals, setYieldTotals] = useStatePlain<Record<number, number>>({});
-  const [yieldRefs, setYieldRefs] = useStatePlain<Record<string, YieldReference>>({});
-  const [photoUrls, setPhotoUrls] = useStatePlain<Record<number, string>>({});
+  const [yieldTotals, setYieldTotals] = useState<Record<number, number>>({});
+  const [yieldRefs, setYieldRefs] = useState<Record<string, YieldReference>>({});
+  const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({});
 
   useEffect(() => {
     (async () => {

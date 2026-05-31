@@ -15,7 +15,7 @@ import { ArrowLeft, X, Search, Database, Loader2, Check } from 'lucide-react';
 import Link from 'next/link';
 import type { PlantCategory, GrowingMethod, HealthTag, CustomPlant } from '@/types/plant';
 import { db } from '@/lib/db';
-import { searchPlants, getPlantById, type TreflePlant } from '@/lib/api/plants';
+import { searchPlants, getPlantDetail, type UnifiedPlantResult } from '@/lib/api/plants';
 
 const categories: { value: PlantCategory; label: string }[] = [
   { value: 'vegetable', label: 'Vegetable' },
@@ -66,7 +66,7 @@ export default function NewPlantPage() {
   // ── Lookup state ──────────────────────────────────────────────────────────
   const [lookupQuery, setLookupQuery] = useState('');
   const [lookupResults, setLookupResults] = useState<
-    Array<{ source: 'trefle' | 'custom'; plant: TreflePlant | CustomPlant }>
+    Array<{ source: 'local' | 'perenual' | 'custom'; plant: UnifiedPlantResult | CustomPlant }>
   >([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -83,39 +83,37 @@ export default function NewPlantPage() {
       const customMatches = await db.customPlants
         .filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
         .toArray();
-      let trefleMatches: TreflePlant[] = [];
+      let apiMatches: UnifiedPlantResult[] = [];
       try {
-        trefleMatches = await searchPlants(q);
+        apiMatches = await searchPlants(q);
       } catch (err) {
         // Don't fail the whole lookup — still show custom matches.
         setLookupError('Plant database unreachable. Showing local results only.');
       }
       setLookupResults([
         ...customMatches.map((p) => ({ source: 'custom' as const, plant: p })),
-        ...trefleMatches.map((p) => ({ source: 'trefle' as const, plant: p })),
+        ...apiMatches.map((p) => ({ source: p.source as 'local' | 'perenual', plant: p })),
       ]);
     } finally {
       setLookupLoading(false);
     }
   };
 
-  const applyTreflePlant = async (tp: TreflePlant) => {
-    setName(tp.common_name ?? tp.scientific_name);
-    setLastPickedTrefleId(tp.id);
+  const applyApiPlant = async (plant: UnifiedPlantResult) => {
+    setName(plant.name);
+    setLastPickedTrefleId(plant.source === 'perenual' ? Number(plant.id.replace('perenual-', '')) : null);
     try {
-      const detail = await getPlantById(tp.id);
-      const growth = detail?.main_species?.growth;
-      const specs = detail?.main_species?.specifications;
+      const detail = await getPlantDetail(plant);
       const bits: string[] = [];
-      if (tp.scientific_name) bits.push(`Scientific name: ${tp.scientific_name}`);
-      if (tp.family) bits.push(`Family: ${tp.family}`);
-      if (growth?.minimum_temperature?.deg_c !== undefined)
-        bits.push(`Min temp: ${growth.minimum_temperature.deg_c}°C`);
-      if (growth?.maximum_temperature?.deg_c !== undefined)
-        bits.push(`Max temp: ${growth.maximum_temperature.deg_c}°C`);
-      if (growth?.ph_minimum !== undefined)
-        bits.push(`pH ${growth.ph_minimum}–${growth.ph_maximum ?? '?'}`);
-      if (specs?.growth_rate) bits.push(`Growth rate: ${specs.growth_rate}`);
+      if (plant.scientificName) bits.push(`Scientific name: ${plant.scientificName}`);
+      if (plant.family) bits.push(`Family: ${plant.family}`);
+      if (detail.minTempC !== undefined) bits.push(`Min temp: ${detail.minTempC}°C`);
+      if (detail.maxTempC !== undefined) bits.push(`Max temp: ${detail.maxTempC}°C`);
+      if (detail.minPh !== undefined) bits.push(`pH ${detail.minPh}–${detail.maxPh ?? '?'}`);
+      if (detail.waterNeeds) bits.push(`Water needs: ${detail.waterNeeds}`);
+      if (detail.daysToMaturity) bits.push(`Days to maturity: ${detail.daysToMaturity[0]}–${detail.daysToMaturity[1]}`);
+      if (detail.harvestWindow) bits.push(`Harvest: ${detail.harvestWindow}`);
+      if (detail.culinaryUses?.length) bits.push(`Culinary: ${detail.culinaryUses.join(', ')}`);
       if (bits.length > 0) setNotes(bits.join('\n'));
     } catch {
       /* ignore — notes stay as-is */
@@ -209,7 +207,7 @@ export default function NewPlantPage() {
                 Plant Lookup
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Search the Trefle plant database or your saved custom plants to auto-fill fields.
+                Search our local plant database (55+ Thai plants, works offline) or Perenual API to auto-fill fields.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -270,24 +268,27 @@ export default function NewPlantPage() {
                         </button>
                       );
                     }
-                    const tp = res.plant as TreflePlant;
+                    const up = res.plant as UnifiedPlantResult;
                     return (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => applyTreflePlant(tp)}
+                        onClick={() => applyApiPlant(up)}
                         className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left"
                       >
-                        <Badge variant="outline" className="text-[10px]">Trefle</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {up.source === 'local' ? 'Local DB' : 'Perenual'}
+                        </Badge>
+                        {up.imageUrl && (
+                          <img src={up.imageUrl} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
+                        )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">
-                            {tp.common_name ?? tp.scientific_name}
-                          </p>
+                          <p className="text-sm font-medium truncate">{up.name}</p>
                           <p className="text-[10px] text-muted-foreground italic truncate">
-                            {tp.scientific_name}
+                            {up.scientificName}
                           </p>
                         </div>
-                        {lastPickedTrefleId === tp.id && (
+                        {lastPickedTrefleId && String(lastPickedTrefleId) === up.id && (
                           <Check className="h-3.5 w-3.5 text-green-600" />
                         )}
                       </button>
