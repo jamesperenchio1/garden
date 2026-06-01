@@ -1,108 +1,92 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { usePlants } from '@/hooks/use-plants';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Leaf, TrendingUp } from 'lucide-react';
-import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
-import { db } from '@/lib/db';
-import { YIELD_RATING_LABELS, YIELD_RATING_COLORS, calculateYieldRating } from '@/hooks/use-yields';
-import type { PlantCategory, GrowingMethod, YieldRating, YieldReference } from '@/types/plant';
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePlants } from "@/hooks/use-plants";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Plus, Search, Sprout, ArrowRight } from "lucide-react";
+import type { PlantCategory } from "@/types";
+
+const CATEGORIES: { label: string; value: PlantCategory | "all" }[] = [
+  { label: "All", value: "all" },
+  { label: "Vegetable", value: "vegetable" },
+  { label: "Herb", value: "herb" },
+  { label: "Fruit", value: "fruit" },
+  { label: "Flower", value: "flower" },
+];
+
+function categoryColor(category: PlantCategory): string {
+  switch (category) {
+    case "vegetable":
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200";
+    case "herb":
+      return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200";
+    case "fruit":
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+    case "flower":
+      return "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200";
+    case "ornamental":
+      return "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200";
+    case "medicinal":
+      return "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+function growingMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    soil: "Soil",
+    hydroponic: "Hydroponic",
+    aeroponic: "Aeroponic",
+    aquaponic: "Aquaponic",
+  };
+  return labels[method] || method;
+}
 
 export default function PlantsPage() {
+  const router = useRouter();
   const { plants, loading } = usePlants();
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [methodFilter, setMethodFilter] = useState<string>('all');
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState<PlantCategory | "all">("all");
 
-  // Load yield totals and references from DB
-  const [yieldTotals, setYieldTotals] = useState<Record<number, number>>({});
-  const [yieldRefs, setYieldRefs] = useState<Record<string, YieldReference>>({});
-  const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({});
-
-  useEffect(() => {
-    (async () => {
-      // Get all yield records grouped by plantId
-      const allRecords = await db.yieldRecords.toArray();
-      const totals: Record<number, number> = {};
-      for (const r of allRecords) {
-        totals[r.plantId] = (totals[r.plantId] || 0) + r.amountGrams;
-      }
-      setYieldTotals(totals);
-
-      // Get all references indexed by name
-      const refs = await db.yieldReferences.toArray();
-      const refMap: Record<string, YieldReference> = {};
-      for (const r of refs) {
-        refMap[r.plantName] = r;
-      }
-      setYieldRefs(refMap);
-    })();
-  }, [plants]);
-
-  // Pull the first (or most recent) plant photo for each plant and build blob URLs.
-  useEffect(() => {
-    let cancelled = false;
-    const created: string[] = [];
-    (async () => {
-      const urls: Record<number, string> = {};
-      for (const p of plants) {
-        if (!p.id) continue;
-        const photo = await db.photos
-          .where('plantId')
-          .equals(p.id)
-          .filter((ph) => ph.type === 'plant')
-          .first();
-        if (photo?.thumbnail) {
-          const url = URL.createObjectURL(photo.thumbnail);
-          urls[p.id] = url;
-          created.push(url);
-        }
-      }
-      if (!cancelled) setPhotoUrls(urls);
-    })();
-    return () => {
-      cancelled = true;
-      created.forEach(URL.revokeObjectURL);
-    };
-  }, [plants]);
-
-  const filtered = plants.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.variety?.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
-    const matchesMethod = methodFilter === 'all' || p.growingMethod === methodFilter;
-    return matchesSearch && matchesCategory && matchesMethod;
-  });
-
-  const getHealthColor = (plant: typeof plants[0]) => {
-    if (!plant.healthTags?.length) return 'bg-gray-100 text-gray-600';
-    if (plant.healthTags.some((t) => t.severity === 'high')) return 'bg-red-100 text-red-600';
-    if (plant.healthTags.some((t) => t.severity === 'medium')) return 'bg-amber-100 text-amber-600';
-    return 'bg-green-100 text-green-600';
-  };
-
-  const getHealthLabel = (plant: typeof plants[0]) => {
-    if (!plant.healthTags?.length) return 'No status';
-    const overall = plant.healthTags.find((t) => t.category === 'overall');
-    if (overall) return overall.value;
-    if (plant.healthTags.some((t) => t.severity === 'high')) return 'Critical';
-    if (plant.healthTags.some((t) => t.severity === 'medium')) return 'Watch';
-    return 'Good';
-  };
+  const filtered = useMemo(() => {
+    return plants.filter((p) => {
+      const matchesCategory = activeCategory === "all" || p.category === activeCategory;
+      const q = search.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.variety && p.variety.toLowerCase().includes(q)) ||
+        p.tags.some((t) => t.toLowerCase().includes(q));
+      return matchesCategory && matchesSearch;
+    });
+  }, [plants, activeCategory, search]);
 
   return (
-    <div className="space-y-6">
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3">
+    <main className="mx-auto max-w-6xl px-4 py-6">
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">My Plants</h1>
+          <p className="text-muted-foreground">
+            {plants.length} {plants.length === 1 ? "plant" : "plants"} in your garden
+          </p>
+        </div>
+        <Button onClick={() => router.push("/plants/new")}>
+          <Plus className="size-4" />
+          Add Plant
+        </Button>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search plants..."
             value={search}
@@ -110,141 +94,79 @@ export default function PlantsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={categoryFilter} onValueChange={(v) => v && setCategoryFilter(v)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="vegetable">Vegetable</SelectItem>
-            <SelectItem value="herb">Herb</SelectItem>
-            <SelectItem value="fruit">Fruit</SelectItem>
-            <SelectItem value="flower">Flower</SelectItem>
-            <SelectItem value="ornamental">Ornamental</SelectItem>
-            <SelectItem value="medicinal">Medicinal</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={methodFilter} onValueChange={(v) => v && setMethodFilter(v)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Method" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Methods</SelectItem>
-            <SelectItem value="soil">Soil</SelectItem>
-            <SelectItem value="hydroponic">Hydroponic</SelectItem>
-            <SelectItem value="aeroponic">Aeroponic</SelectItem>
-            <SelectItem value="aquaponic">Aquaponic</SelectItem>
-          </SelectContent>
-        </Select>
-        <Link href="/plants/new">
-          <Button className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Plant
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map((cat) => (
+            <Button
+              key={cat.value}
+              size="sm"
+              variant={activeCategory === cat.value ? "default" : "outline"}
+              onClick={() => setActiveCategory(cat.value)}
+            >
+              {cat.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Plant Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <Skeleton className="h-32 w-full mb-3" />
-                <Skeleton className="h-5 w-3/4 mb-2" />
-                <Skeleton className="h-4 w-1/2" />
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="h-40 animate-pulse bg-muted" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center py-12">
-            <Leaf className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              {plants.length === 0 ? 'No plants yet' : 'No matching plants'}
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              {plants.length === 0
-                ? 'Start by adding your first plant to track its growth.'
-                : 'Try adjusting your search or filters.'}
-            </p>
-            {plants.length === 0 && (
-              <Link href="/plants/new">
-                <Button className="bg-green-600 hover:bg-green-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Your First Plant
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+          <Sprout className="mb-3 size-10 text-muted-foreground" />
+          <p className="text-lg font-medium">No plants found</p>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {plants.length === 0
+              ? "Start your garden by adding your first plant."
+              : "Try adjusting your search or filters."}
+          </p>
+          {plants.length === 0 && (
+            <Button onClick={() => router.push("/plants/new")}>
+              <Plus className="size-4" />
+              Add Plant
+            </Button>
+          )}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((plant) => (
-            <Link key={plant.id} href={`/plants/${plant.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                <CardContent className="pt-6">
-                  <div className="h-32 bg-muted rounded-lg overflow-hidden flex items-center justify-center mb-3">
-                    {plant.id && photoUrls[plant.id] ? (
-                      <img
-                        src={photoUrls[plant.id]}
-                        alt={plant.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Leaf className="h-8 w-8 text-muted-foreground" />
-                    )}
+            <Link key={plant.id} href={`/plants/detail?id=${plant.id}`} className="group">
+              <Card className="transition-shadow hover:shadow-md">
+                <CardContent className="pt-4">
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium group-hover:text-primary">{plant.name}</h3>
+                      {plant.variety && (
+                        <p className="text-sm text-muted-foreground">{plant.variety}</p>
+                      )}
+                    </div>
+                    <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold">{plant.name}</h3>
-                        {plant.variety && (
-                          <p className="text-sm text-muted-foreground">{plant.variety}</p>
-                        )}
-                      </div>
-                      <Badge className={`text-xs ${getHealthColor(plant)}`} variant="outline">
-                        {getHealthLabel(plant)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="secondary" className="text-xs capitalize">
-                        {plant.category}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {plant.growingMethod}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Planted {formatDistanceToNow(new Date(plant.plantedDate), { addSuffix: true })}
-                    </p>
-                    {/* Yield rating from DB */}
-                    {(() => {
-                      const total = yieldTotals[plant.id!] || 0;
-                      const ref = yieldRefs[plant.name] ?? null;
-                      const rating = calculateYieldRating(total, ref);
-                      if (rating === 'none') return null;
-                      return (
-                        <div className="flex items-center gap-1.5">
-                          <TrendingUp className="h-3 w-3 text-muted-foreground" />
-                          <Badge className={`text-[10px] border-0 ${YIELD_RATING_COLORS[rating]}`}>
-                            {YIELD_RATING_LABELS[rating]}
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground">
-                            {total > 1000 ? `${(total / 1000).toFixed(1)}kg` : `${total}g`}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    {plant.tags?.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
-                        {plant.tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
+
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <Badge
+                      className={`${categoryColor(plant.category)} border-0 hover:opacity-90`}
+                    >
+                      {plant.category}
+                    </Badge>
+                    <Badge variant="outline">{growingMethodLabel(plant.growingMethod)}</Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>
+                      Planted{" "}
+                      {new Date(plant.plantedDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    {plant.healthTags.length > 0 && (
+                      <span>{plant.healthTags.length} health note(s)</span>
                     )}
                   </div>
                 </CardContent>
@@ -253,6 +175,6 @@ export default function PlantsPage() {
           ))}
         </div>
       )}
-    </div>
+    </main>
   );
 }

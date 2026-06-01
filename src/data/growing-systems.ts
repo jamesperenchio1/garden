@@ -1,129 +1,250 @@
-import type { SystemType } from '@/types/system';
-
-export interface GrowingSystemInfo {
-  type: SystemType;
+export interface GrowingSystem {
   name: string;
   description: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  waterUsage: 'low' | 'medium' | 'high';
-  bestFor: string[];
   pros: string[];
   cons: string[];
 }
 
-export const growingSystems: GrowingSystemInfo[] = [
+export const growingSystems: GrowingSystem[] = [
   {
-    type: 'nft',
     name: 'Nutrient Film Technique (NFT)',
-    description: 'A thin film of nutrient solution flows continuously over plant roots in sloped channels.',
+    description:
+      'A thin film of nutrient solution continuously flows over plant roots in sloped channels. Very popular for leafy greens and herbs in Thai urban farms due to water efficiency and fast turnaround.',
     difficulty: 'intermediate',
-    waterUsage: 'low',
-    bestFor: ['Lettuce', 'Herbs', 'Strawberries', 'Leafy greens'],
-    pros: ['Efficient water use', 'Easy to inspect roots', 'Good oxygenation', 'Scalable'],
-    cons: ['Pump failure = rapid plant death', 'Not great for large plants', 'Channel blockages'],
+    pros: [
+      'Extremely water-efficient—ideal for drought-prone Thai regions',
+      'Fast growth rates for lettuce, basil, and pak choi',
+      'Modular and scalable for balconies and rooftops',
+      'Minimal growing medium required',
+      'Easy to inspect and harvest roots',
+    ],
+    cons: [
+      'Pump failure or power outage can kill plants within hours',
+      'Susceptible to clogging from algae or debris in humid Thai climate',
+      'Not suitable for heavy fruiting crops (tomato, eggplant)',
+      'Requires precise pH and EC monitoring',
+      'Root temperature can spike in direct sun without insulation',
+    ],
   },
   {
-    type: 'dwc',
     name: 'Deep Water Culture (DWC)',
-    description: 'Plant roots are suspended in aerated nutrient solution. Air stones provide oxygen.',
+    description:
+      'Plants are suspended in net pots with roots submerged in an oxygenated nutrient solution. One of the simplest and most reliable hydroponic methods for beginners in Thailand.',
     difficulty: 'beginner',
-    waterUsage: 'medium',
-    bestFor: ['Lettuce', 'Kale', 'Basil', 'Bok choy', 'Herbs'],
-    pros: ['Simple setup', 'Fast growth', 'Inexpensive', 'Low maintenance'],
-    cons: ['Water temperature control needed in Thai heat', 'Root diseases if water stagnates', 'Heavy water use for large setups'],
+    pros: [
+      'Very forgiving for beginners—stable root zone environment',
+      'Excellent for leafy greens, herbs, and even chili',
+      'Low maintenance once balanced',
+      'Reservoir thermal mass buffers against rapid Thai temperature swings',
+      'No complex irrigation plumbing needed',
+    ],
+    cons: [
+      'Large water volume means bigger nutrient cost at refill',
+      'Root diseases (Pythium) spread quickly if oxygenation fails',
+      'Mosquitoes can breed in open reservoirs—cover essential',
+      'Difficult to move once filled',
+      'Algae growth in uncovered tanks is common in sunny Thai conditions',
+    ],
   },
   {
-    type: 'ebb_flow',
-    name: 'Ebb & Flow (Flood and Drain)',
-    description: 'Growing bed periodically floods with nutrient solution then drains back to reservoir.',
+    name: 'Ebb and Flow (Flood and Drain)',
+    description:
+      'The grow bed is periodically flooded with nutrient solution and then drained. Mimics natural tidal patterns and works well with a variety of media.',
     difficulty: 'intermediate',
-    waterUsage: 'medium',
-    bestFor: ['Tomatoes', 'Peppers', 'Herbs', 'Most vegetables'],
-    pros: ['Versatile', 'Good root oxygenation', 'Can use various media', 'Timer-controlled'],
-    cons: ['Timer/pump dependency', 'More components', 'Potential overflow issues'],
+    pros: [
+      'Versatile—suitable for seedlings, herbs, and medium fruiting crops',
+      'Excellent oxygenation of roots during drain cycles',
+      'Can use inexpensive local media (volcanic rock, coconut coir)',
+      'Timer-based automation is straightforward',
+      'Tolerates brief power outages better than NFT',
+    ],
+    cons: [
+      'More moving parts (timers, bell siphons, pumps) to maintain',
+      'Bell siphons can fail if not tuned correctly',
+      'Grow beds are heavy when flooded—structural support needed',
+      'Risk of salt buildup in media over time',
+      'Drainage plumbing can clog with roots and debris',
+    ],
   },
   {
-    type: 'drip',
     name: 'Drip System',
-    description: 'Nutrient solution is dripped slowly to each plant via emitters from a supply line.',
+    description:
+      'Nutrient solution is dripped directly onto the base of each plant via emitters. Highly adaptable to Thai container gardening and larger setups alike.',
     difficulty: 'intermediate',
-    waterUsage: 'low',
-    bestFor: ['Tomatoes', 'Peppers', 'Cucumbers', 'Large plants'],
-    pros: ['Precise nutrient delivery', 'Scalable', 'Good for large plants', 'Water efficient'],
-    cons: ['Emitter clogging', 'More complex plumbing', 'pH drift in long runs'],
+    pros: [
+      'Scales from a few pots to commercial farms easily',
+      'Works with soil, coco coir, perlite, or rockwool',
+      'Precise control over each plant\'s water and nutrient delivery',
+      'Suitable for heavy fruiting crops like tomato and eggplant',
+      'Can be run on gravity with elevated reservoir',
+    ],
+    cons: [
+      'Emitters clog frequently from mineral precipitates and algae',
+      'Uneven flow if system is not level',
+      'More tubing and hardware to install and maintain',
+      'Runoff or excess solution requires management',
+      'Sensitive to water pressure fluctuations',
+    ],
   },
   {
-    type: 'aeroponics',
     name: 'Aeroponics',
-    description: 'Plant roots hang in air and are misted with nutrient solution at intervals.',
+    description:
+      'Roots hang in air and are misted with nutrient solution. Delivers maximum oxygen to roots and achieves the fastest growth rates, but requires precision engineering.',
     difficulty: 'advanced',
-    waterUsage: 'low',
-    bestFor: ['Lettuce', 'Herbs', 'Strawberries', 'Microgreens'],
-    pros: ['Fastest growth rates', 'Most water efficient', 'Maximum oxygenation', 'No growing media needed'],
-    cons: ['Most complex', 'Mister clogging', 'Power failure critical', 'Expensive'],
+    pros: [
+      'Fastest growth rates of any soilless method',
+      'Uses 95% less water than soil agriculture',
+      'No growing medium needed—lower ongoing cost',
+      'Excellent root inspection and disease isolation',
+      'Very high yield per square meter',
+    ],
+    cons: [
+      'High initial cost for misting nozzles and pressure pumps',
+      'Nozzle clogging is relentless in hard-water areas of Thailand',
+      'Power failure is catastrophic—roots dry in minutes',
+      'Requires meticulous pH and EC calibration',
+      'Humidity management critical in already-humid Thai climate',
+    ],
   },
   {
-    type: 'wicking',
-    name: 'Passive Wicking',
-    description: 'Nutrient solution is drawn up to roots via capillary action through wicking material. No pumps needed.',
+    name: 'Wicking System',
+    description:
+      'A passive system where nutrient solution travels from a reservoir to the root zone via a wick. Perfect for small Thai apartments and low-tech beginners.',
     difficulty: 'beginner',
-    waterUsage: 'low',
-    bestFor: ['Herbs', 'Leafy greens', 'Small plants', 'Lettuce'],
-    pros: ['No electricity needed', 'Extremely simple', 'Passive operation', 'Low cost', 'Silent'],
-    cons: ['Slower growth than active systems', 'Limited to smaller plants', 'Wicking material maintenance'],
+    pros: [
+      'No pumps, electricity, or timers required',
+      'Extremely low cost and simple to build',
+      'Great for herbs, lettuce, and microgreens',
+      'Silent operation—ideal for indoor balconies',
+      'Very low maintenance',
+    ],
+    cons: [
+      'Limited to small, water-loving plants',
+      'Wick material can degrade or become clogged with algae',
+      'Slow nutrient delivery—not suitable for fast-growing fruiting crops',
+      'Reservoir can breed mosquitoes if uncovered',
+      'Root zone may stay too wet, encouraging rot',
+    ],
   },
   {
-    type: 'dutch_bucket',
-    name: 'Dutch Bucket (Bato Bucket)',
-    description: 'Individual buckets with growing media, drip-fed nutrient solution with drain-to-waste or recirculating.',
+    name: 'Dutch Bucket',
+    description:
+      'Individual buckets filled with media (perlite, coco coir) feed each plant via a drip line, with runoff collected and recirculated or drained. Standard for vine crops in Thai hydroponic farms.',
     difficulty: 'intermediate',
-    waterUsage: 'medium',
-    bestFor: ['Tomatoes', 'Peppers', 'Cucumbers', 'Eggplant', 'Large fruiting plants'],
-    pros: ['Great for large plants', 'Easy to maintain individual plants', 'Modular', 'Good drainage'],
-    cons: ['More plumbing', 'Uses growing media', 'Individual bucket maintenance'],
+    pros: [
+      'Perfect for large fruiting vines: tomato, cucumber, bitter melon',
+      'Isolates each plant—disease does not spread easily',
+      'Excellent drainage prevents root rot in humid climate',
+      'Easy to train plants vertically, saving space',
+      'Buckets can be moved or replaced individually',
+    ],
+    cons: [
+      'Requires significant media volume per plant',
+      'Drip emitters need frequent cleaning',
+      'Runoff collection adds plumbing complexity',
+      'More labor-intensive for large numbers of plants',
+      'Media replacement needed every 1–2 years',
+    ],
   },
   {
-    type: 'kratky',
     name: 'Kratky Method',
-    description: 'Passive DWC where plants sit in nutrient solution that is not replenished. Air gap forms as roots grow.',
+    description:
+      'A completely passive form of DWC where a static reservoir is filled once and allowed to deplete as plants grow. The air gap above the falling water line provides oxygen.',
     difficulty: 'beginner',
-    waterUsage: 'low',
-    bestFor: ['Lettuce', 'Herbs', 'Leafy greens', 'Small plants'],
-    pros: ['Zero electricity', 'Simplest possible setup', 'No pumps or timers', 'Very cheap'],
-    cons: ['Single harvest per fill', 'Limited to fast-growing crops', 'No nutrient adjustment', 'Small scale'],
+    pros: [
+      'Zero electricity, pumps, or timers—ultimate simplicity',
+      'Extremely low cost for home gardeners',
+      'Excellent for short-cycle leafy greens and herbs',
+      'No noise or mechanical failure risk',
+      'Easy to set up with recycled containers',
+    ],
+    cons: [
+      'Only works for short-cycle crops; not for long fruiting plants',
+      'Water level must be carefully calculated at setup',
+      'No way to adjust nutrients mid-cycle',
+      'Roots can become slimy if reservoir is too warm',
+      'Algae and mosquito breeding in uncovered containers',
+    ],
   },
   {
-    type: 'vertical_tower',
     name: 'Vertical Tower',
-    description: 'Stacked growing system where nutrient solution flows from top down through multiple planting sites.',
+    description:
+      'Plants grow in stacked columns or A-frame towers, often with NFT or drip irrigation running top-to-bottom. Maximizes production in tight Bangkok and Chiang Mai urban spaces.',
     difficulty: 'intermediate',
-    waterUsage: 'low',
-    bestFor: ['Strawberries', 'Lettuce', 'Herbs', 'Small vegetables'],
-    pros: ['Space efficient', 'Eye-catching', 'Good for small spaces', 'Many planting sites'],
-    cons: ['Uneven light distribution', 'Top-heavy when mature', 'Bottom plants get less light'],
+    pros: [
+      'Maximum plants per square meter—ideal for balconies',
+      'Striking visual appeal for home and commercial displays',
+      'Good airflow between plants reduces fungal disease',
+      'Harvesting at waist height reduces back strain',
+      'Can combine herbs, greens, and strawberries in one tower',
+    ],
+    cons: [
+      'Top plants may shade lower ones if not rotated',
+      'Pump must overcome gravity—higher pressure needed',
+      'Uneven water distribution can dry bottom plants',
+      'Tower stability critical in Thai storm season winds',
+      'More expensive per plant than horizontal systems',
+    ],
   },
   {
-    type: 'rail_gutter',
-    name: 'Rail/Gutter System',
-    description: 'Horizontal gutters or rails with nutrient solution flowing through. Can be passive (wicking) or active (pumped).',
-    difficulty: 'beginner',
-    waterUsage: 'low',
-    bestFor: ['Lettuce', 'Herbs', 'Strawberries', 'Microgreens'],
-    pros: ['Easy to build with standard gutters', 'Can be passive or active', 'Good for narrow spaces', 'Stackable'],
-    cons: ['Limited root space', 'Slope must be precise', 'Algae growth in gutters'],
+    name: 'Rail / Gutter System',
+    description:
+      'PVC rain gutters or custom rails are mounted horizontally (often on walls or fences) with plants in net cups. Nutrient solution recirculates or drips through the rail.',
+    difficulty: 'intermediate',
+    pros: [
+      'Excellent use of vertical wall and fence space',
+      'Good for Thai townhouses with limited ground area',
+      'Easy to level and inspect',
+      'Modular—add or remove rail sections as needed',
+      'Gutter systems are inexpensive using local PVC supplies',
+    ],
+    cons: [
+      'Limited root space restricts plant size and yield',
+      'Rails heat up in direct sun, stressing roots',
+      'Clogging at low points if not perfectly level',
+      'Not suitable for heavy fruiting crops',
+      'Wall mounting requires sturdy brackets',
+    ],
   },
   {
-    type: 'aquaponics',
-    name: 'Aquaponics',
-    description: 'Combines fish farming with hydroponics. Fish waste provides nutrients for plants, plants filter water for fish.',
+    name: 'Media-Based Aquaponics',
+    description:
+      'Fish tank water is pumped into a gravel or volcanic rock grow bed, where plants filter the water before it returns to the fish. A sustainable closed-loop system well-suited to Thai warm-water fish like tilapia.',
+    difficulty: 'intermediate',
+    pros: [
+      'No synthetic fertilizers—fish waste feeds plants',
+      'Produces both protein (tilapia, catfish) and vegetables',
+      'Very low water use once cycled',
+      'Hardy against brief Thai power outages if sized correctly',
+      'Excellent for leafy greens, herbs, and fruiting crops',
+    ],
+    cons: [
+      'Requires cycling period (4–6 weeks) before adding fish',
+      'Fish health directly impacts plant health',
+      'pH compromise needed between fish (7.0) and plants (6.0)',
+      'Heat can reduce dissolved oxygen—extra aeration needed',
+      'Predatory birds and cats may target outdoor fish tanks',
+    ],
+  },
+  {
+    name: 'NFT Aquaponics',
+    description:
+      'Combines fish tanks with NFT channels where plant roots filter water in a thin film. Common in commercial Thai aquaponics for high-density leafy production.',
     difficulty: 'advanced',
-    waterUsage: 'medium',
-    bestFor: ['Leafy greens', 'Herbs', 'Tomatoes', 'Cucumbers', 'Tilapia', 'Catfish'],
-    pros: ['Self-sustaining ecosystem', 'Produces fish + vegetables', 'Organic-compatible', 'Educational'],
-    cons: ['Complex to balance', 'Fish health management', 'Startup time for cycling', 'More equipment'],
+    pros: [
+      'Highest plant density of any aquaponics method',
+      'Continuous water filtration benefits fish health',
+      'Very fast lettuce and herb turnover',
+      'Water stays well-oxygenated in thin film',
+      'Modular expansion for commercial scale',
+    ],
+    cons: [
+      'Biofilter must be robust—fish waste solids clog channels',
+      'Any system failure affects both fish and plants rapidly',
+      'Requires backup power and aeration for fish safety',
+      'Root temperature control harder than media beds',
+      'High technical knowledge needed for balancing system',
+    ],
   },
 ];
-
-export function getSystemInfo(type: SystemType): GrowingSystemInfo | undefined {
-  return growingSystems.find((s) => s.type === type);
-}

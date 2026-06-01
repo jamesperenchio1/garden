@@ -1,96 +1,298 @@
-import type { PlantingWindow } from '@/types/calendar';
+import type { PlantingWindow, PlantCategory } from '@/types';
 
-/**
- * Thailand-specific planting calendar data.
- * Month numbers: 1=Jan, 12=Dec
- * Thai seasons: Cool (Nov-Feb), Hot (Mar-May), Rainy (Jun-Oct)
- */
-export const thaiPlantingCalendar: PlantingWindow[] = [
+export const thaiPlants: PlantingWindow[] = [
   // Vegetables
-  { plantName: 'Kale', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 2 }, harvest: { start: 12, end: 4 }, notes: 'Best in cool season. Bolts quickly in heat.' },
-  { plantName: 'Lettuce', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 11, end: 3 }, notes: 'Cool season only. Use shade cloth for extended season.' },
-  { plantName: 'Tomato', plantCategory: 'vegetable', sowIndoors: { start: 9, end: 10 }, transplant: { start: 10, end: 11 }, harvest: { start: 1, end: 3 }, notes: 'Start in late rainy season, transplant for cool season harvest.' },
-  { plantName: 'Chili Pepper', plantCategory: 'vegetable', sowIndoors: { start: 5, end: 7 }, transplant: { start: 7, end: 9 }, harvest: { start: 10, end: 3 }, notes: 'Year-round in Thailand, but best started in rainy season.' },
-  { plantName: 'Cucumber', plantCategory: 'vegetable', sowOutdoors: { start: 6, end: 9 }, harvest: { start: 8, end: 11 }, notes: 'Loves rain and heat. Provide trellis for climbing.' },
-  { plantName: 'Eggplant', plantCategory: 'vegetable', sowIndoors: { start: 5, end: 8 }, transplant: { start: 7, end: 10 }, harvest: { start: 10, end: 2 }, notes: 'Thai eggplant thrives in warm weather. Many varieties available.' },
-  { plantName: 'Water Spinach', plantCategory: 'vegetable', sowOutdoors: { start: 3, end: 10 }, harvest: { start: 4, end: 11 }, notes: 'Morning glory/kangkong. Extremely fast growing in Thai climate. Year-round possible.' },
-  { plantName: 'Chinese Cabbage', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 12, end: 3 }, notes: 'Cool season crop. Bolts quickly in warm weather.' },
-  { plantName: 'Long Bean', plantCategory: 'vegetable', sowOutdoors: { start: 3, end: 9 }, harvest: { start: 5, end: 11 }, notes: 'Year-round in Thailand. Very productive in rainy season.' },
-  { plantName: 'Bitter Melon', plantCategory: 'vegetable', sowOutdoors: { start: 3, end: 8 }, harvest: { start: 5, end: 10 }, notes: 'Loves heat and humidity. Needs strong trellis.' },
-  { plantName: 'Okra', plantCategory: 'vegetable', sowOutdoors: { start: 3, end: 8 }, harvest: { start: 5, end: 11 }, notes: 'Thrives in Thai heat. Very productive.' },
-  { plantName: 'Sweet Potato', plantCategory: 'vegetable', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 9, end: 12 }, notes: 'Plant cuttings in early rainy season. Excellent ground cover.' },
-  { plantName: 'Corn', plantCategory: 'vegetable', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 7, end: 10 }, notes: 'Plant with onset of rains. Both sweet and field corn grow well.' },
-  { plantName: 'Pumpkin', plantCategory: 'vegetable', sowOutdoors: { start: 6, end: 9 }, harvest: { start: 10, end: 1 }, notes: 'Thai pumpkins are smaller and sweeter. Love rainy season.' },
-  { plantName: 'Radish', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 11, end: 2 }, notes: 'Very fast crop (30 days). Cool season for best results.' },
-  { plantName: 'Carrot', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 12 }, harvest: { start: 1, end: 3 }, notes: 'Cool season only. Tropical varieties perform better.' },
-  { plantName: 'Spinach', plantCategory: 'vegetable', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 11, end: 3 }, notes: 'Cool season. Consider Malabar spinach for year-round heat-tolerant alternative.' },
-  { plantName: 'Malabar Spinach', plantCategory: 'vegetable', sowOutdoors: { start: 3, end: 9 }, harvest: { start: 5, end: 11 }, notes: 'Heat-loving spinach alternative. Climbing vine, very productive.' },
-
+  {
+    plantName: 'Thai Bird Chili (Prik Kee Noo)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowIndoors: { start: 1, end: 3 },
+    sowOutdoors: { start: 3, end: 6 },
+    transplant: { start: 4, end: 7 },
+    harvest: { start: 6, end: 11 },
+    notes: 'Thai staple. Loves heat. Start indoors early rainy season. Pick frequently to prolong production. Watch for thrips in dry season.',
+  },
+  {
+    plantName: 'Thai Eggplant (Makhuea Pro)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowIndoors: { start: 11, end: 2 },
+    sowOutdoors: { start: 2, end: 5 },
+    transplant: { start: 3, end: 6 },
+    harvest: { start: 5, end: 9 },
+    notes: 'Small round green-white variety. Needs warm nights above 18°C. Mulch heavily during hot season. Susceptible to fruit and shoot borer.',
+  },
+  {
+    plantName: 'Long Bean (Thua Pluak)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 3, end: 5 },
+    harvest: { start: 5, end: 10 },
+    notes: 'Fast-growing legume for rainy season. Needs trellis support. Harvest daily when young. Fixes nitrogen; good for crop rotation.',
+  },
+  {
+    plantName: 'Morning Glory (Pak Boong)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 3, end: 10 },
+    harvest: { start: 4, end: 11 },
+    notes: 'Grows incredibly fast in wet conditions. Can be grown in water or soil. Cut-and-come-again. Watch for caterpillars.',
+  },
+  {
+    plantName: 'Thai Bitter Melon (Mara Khee Nok)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowIndoors: { start: 2, end: 4 },
+    sowOutdoors: { start: 3, end: 6 },
+    transplant: { start: 4, end: 7 },
+    harvest: { start: 6, end: 10 },
+    notes: 'Vining crop for warm rainy season. Needs strong trellis. Harvest when fruits are firm and light green. Popular in Thai soups.',
+  },
+  {
+    plantName: 'Chinese Kale (Pak Kana)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 10, end: 2 },
+    harvest: { start: 11, end: 3 },
+    notes: 'Cool-season brassica for Thai highlands and cool months. Bolts quickly above 25°C. Best in Chiang Mai cool season.',
+  },
+  {
+    plantName: 'Winged Bean (Thua Phuu)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 4, end: 7 },
+    harvest: { start: 6, end: 11 },
+    notes: 'Tropical legume; every part is edible. Needs strong trellis. Loves humidity. Scarify seeds for better germination.',
+  },
+  {
+    plantName: 'Okra (Krachiap Khao)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 2, end: 5 },
+    harvest: { start: 4, end: 9 },
+    notes: 'Drought-tolerant once established. Harvest pods when 7-10 cm. Pick every 2 days or pods become woody.',
+  },
+  {
+    plantName: 'Yardlong Bean (Thua Fak Yao)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 3, end: 6 },
+    harvest: { start: 5, end: 10 },
+    notes: 'Classic Thai stir-fry ingredient. Fast-growing. Needs vertical support. High yielder in humid conditions.',
+  },
+  {
+    plantName: 'Thai Cucumber (Taeng Raet)',
+    plantCategory: 'vegetable' as PlantCategory,
+    sowOutdoors: { start: 2, end: 5 },
+    harvest: { start: 4, end: 8 },
+    notes: 'Heat-tolerant variety. Needs ample water and afternoon shade in hot season. Harvest before seeds harden.',
+  },
   // Herbs
-  { plantName: 'Thai Basil', plantCategory: 'herb', sowOutdoors: { start: 3, end: 10 }, harvest: { start: 4, end: 12 }, notes: 'Year-round in Thailand. Pinch flowers for continuous leaf production.' },
-  { plantName: 'Holy Basil', plantCategory: 'herb', sowOutdoors: { start: 3, end: 10 }, harvest: { start: 4, end: 12 }, notes: 'Krapao. Essential for Thai cooking. Year-round growing.' },
-  { plantName: 'Cilantro', plantCategory: 'herb', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 11, end: 3 }, notes: 'Cool season only. Bolts very quickly in heat. Succession sow every 2 weeks.' },
-  { plantName: 'Lemongrass', plantCategory: 'herb', sowOutdoors: { start: 5, end: 9 }, harvest: { start: 8, end: 12 }, notes: 'Plant divisions in rainy season. Extremely hardy once established.' },
-  { plantName: 'Galangal', plantCategory: 'herb', sowOutdoors: { start: 4, end: 7 }, harvest: { start: 10, end: 2 }, notes: 'Plant rhizome pieces. Takes 8-10 months to mature.' },
-  { plantName: 'Turmeric', plantCategory: 'herb', sowOutdoors: { start: 4, end: 6 }, harvest: { start: 12, end: 2 }, notes: 'Plant rhizomes at start of rainy season. Harvest when leaves yellow.' },
-  { plantName: 'Ginger', plantCategory: 'herb', sowOutdoors: { start: 3, end: 5 }, harvest: { start: 11, end: 1 }, notes: 'Plant rhizomes early rainy season. Partial shade preferred.' },
-  { plantName: 'Mint', plantCategory: 'herb', sowOutdoors: { start: 10, end: 2 }, harvest: { start: 11, end: 4 }, notes: 'Prefers cool season. Keep in containers - very invasive.' },
-  { plantName: 'Pandan', plantCategory: 'herb', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Plant divisions. Year-round harvest once established. Loves moisture.' },
-  { plantName: 'Kaffir Lime', plantCategory: 'herb', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Leaves harvestable year-round. Fruits primarily in rainy season.' },
-
+  {
+    plantName: 'Thai Basil (Bai Horapha)',
+    plantCategory: 'herb' as PlantCategory,
+    sowIndoors: { start: 1, end: 12 },
+    sowOutdoors: { start: 3, end: 10 },
+    harvest: { start: 4, end: 11 },
+    notes: 'Anise-licorice aroma. Essential for green curry. Pinch flowers to prolong leaf production. Does not tolerate waterlogging.',
+  },
+  {
+    plantName: 'Holy Basil (Bai Kraphao)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 3, end: 9 },
+    harvest: { start: 5, end: 11 },
+    notes: 'Peppery, clove-like flavor for pad kraphao. Very heat-tolerant. Drought-hardy once established. Self-seeds readily.',
+  },
+  {
+    plantName: 'Lemongrass (Ta Khai)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 2, end: 5 },
+    harvest: { start: 6, end: 12 },
+    notes: 'Divide clumps to propagate. Needs rich soil and moisture. Harvest outer stalks. Protect from flooding.',
+  },
+  {
+    plantName: 'Galangal (Kha)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 3, end: 6 },
+    harvest: { start: 8, end: 12 },
+    notes: 'Plant rhizome pieces with buds. Takes 8-10 months to mature. Shade-tolerant. Leave some rhizomes to regrow.',
+  },
+  {
+    plantName: 'Coriander (Phak Chi)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 10, end: 2 },
+    harvest: { start: 11, end: 3 },
+    notes: 'Cool-season herb. Bolts rapidly in Thai heat. Sow successively every 2 weeks. Partial shade helps in warmer months.',
+  },
+  {
+    plantName: 'Vietnamese Coriander (Phak Phai)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 4, end: 9 },
+    harvest: { start: 6, end: 11 },
+    notes: 'Heat-loving alternative to coriander. Grows in wet conditions. Propagate from cuttings. Peppery, citrus flavor.',
+  },
+  {
+    plantName: 'Turmeric (Khamin)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 3, end: 5 },
+    harvest: { start: 10, end: 12 },
+    notes: 'Plant fresh rhizomes. Needs rich, well-drained soil. Harvest after foliage dies back. Shade-tolerant understory crop.',
+  },
   // Fruits
-  { plantName: 'Papaya', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Fast growing. Fruits 8-10 months from seed. Year-round production.' },
-  { plantName: 'Banana', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Plant suckers in rainy season. Many Thai varieties available.' },
-  { plantName: 'Dragon Fruit', plantCategory: 'fruit', sowOutdoors: { start: 3, end: 6 }, harvest: { start: 6, end: 11 }, notes: 'Needs strong post/trellis. Fruits mainly in rainy/cool season.' },
-  { plantName: 'Passion Fruit', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 10, end: 3 }, notes: 'Fast growing vine. Needs sturdy trellis. Fruits in 6-8 months.' },
-  { plantName: 'Mango', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 3, end: 6 }, notes: 'Thailand has many varieties. Fruits in hot season. Grafted trees produce faster.' },
-  { plantName: 'Guava', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Year-round fruiting in Thailand. Very hardy and productive.' },
-  { plantName: 'Starfruit', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Year-round fruiting. Prefers partial shade when young.' },
-  { plantName: 'Lime', plantCategory: 'fruit', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Essential in Thai cooking. Year-round production. Many Thai varieties.' },
-
+  {
+    plantName: 'Papaya (Malako)',
+    plantCategory: 'fruit' as PlantCategory,
+    sowOutdoors: { start: 2, end: 5 },
+    harvest: { start: 8, end: 12 },
+    notes: 'Fast-growing tropical fruit. Needs excellent drainage—raised beds essential. Separate male/female plants. Dwarf varieties good for home gardens.',
+  },
+  {
+    plantName: 'Pineapple (Sapparot)',
+    plantCategory: 'fruit' as PlantCategory,
+    sowOutdoors: { start: 5, end: 7 },
+    harvest: { start: 11, end: 3 },
+    notes: 'Plant crowns or suckers. Extremely drought-tolerant. Avoid waterlogged soil. Takes 12-18 months to fruit.',
+  },
+  {
+    plantName: 'Banana (Kluai)',
+    plantCategory: 'fruit' as PlantCategory,
+    sowOutdoors: { start: 3, end: 6 },
+    harvest: { start: 10, end: 4 },
+    notes: 'Plant suckers during rainy season. Heavy feeder—mulch with banana pseudostem. Protect from strong winds.',
+  },
+  {
+    plantName: 'Dragon Fruit (Kaeo Mangkon)',
+    plantCategory: 'fruit' as PlantCategory,
+    sowOutdoors: { start: 3, end: 6 },
+    harvest: { start: 6, end: 11 },
+    notes: 'Cactus—needs support post or trellis. Avoid overwatering. Night-blooming flowers. Self-fertile varieties available.',
+  },
+  {
+    plantName: 'Guava (Farang)',
+    plantCategory: 'fruit' as PlantCategory,
+    sowOutdoors: { start: 4, end: 7 },
+    harvest: { start: 9, end: 3 },
+    notes: 'Hardy tropical fruit. Can fruit in first year from grafted trees. Prune for air circulation to prevent fungal issues.',
+  },
   // Flowers
-  { plantName: 'Marigold', plantCategory: 'flower', sowOutdoors: { start: 6, end: 10 }, harvest: { start: 9, end: 2 }, notes: 'Used in Thai ceremonies (ดอกดาวเรือง). Also excellent pest deterrent.' },
-  { plantName: 'Jasmine', plantCategory: 'flower', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Thai national flower (ดอกมะลิ). Year-round flowering. Fragrant.' },
-  { plantName: 'Orchid', plantCategory: 'flower', sowOutdoors: { start: 3, end: 6 }, harvest: { start: 1, end: 12 }, notes: 'Thailand is a major orchid producer. Many varieties available. Mount on trees or in baskets.' },
-  { plantName: 'Sunflower', plantCategory: 'flower', sowOutdoors: { start: 10, end: 1 }, harvest: { start: 12, end: 3 }, notes: 'Cool season for best results. Popular in Lopburi and Saraburi.' },
-
+  {
+    plantName: 'Marigold (Dao Ruang)',
+    plantCategory: 'flower' as PlantCategory,
+    sowIndoors: { start: 8, end: 10 },
+    sowOutdoors: { start: 9, end: 11 },
+    harvest: { start: 11, end: 3 },
+    notes: 'Popular for religious offerings. Deters nematodes—excellent companion plant. Deadhead for continuous blooms.',
+  },
+  {
+    plantName: 'Jasmine (Mali)',
+    plantCategory: 'flower' as PlantCategory,
+    sowOutdoors: { start: 5, end: 7 },
+    harvest: { start: 8, end: 4 },
+    notes: 'National flower of Thailand. Fragrant blooms for garlands. Needs full sun and well-drained soil. Prune after flowering.',
+  },
+  {
+    plantName: 'Bougainvillea (Fueng Fah)',
+    plantCategory: 'flower' as PlantCategory,
+    sowOutdoors: { start: 4, end: 6 },
+    harvest: { start: 6, end: 3 },
+    notes: 'Drought-tolerant once established. Stunning bracts in dry season. Do not overwater—stress promotes flowering.',
+  },
+  {
+    plantName: 'Butterfly Pea (Anchan)',
+    plantCategory: 'flower' as PlantCategory,
+    sowOutdoors: { start: 3, end: 6 },
+    harvest: { start: 5, end: 11 },
+    notes: 'Edible blue flowers for rice and drinks. Nitrogen-fixing vine. Loves heat and humidity. Trellis recommended.',
+  },
+  {
+    plantName: 'Torch Ginger (Dala)',
+    plantCategory: 'flower' as PlantCategory,
+    sowOutdoors: { start: 4, end: 6 },
+    harvest: { start: 8, end: 3 },
+    notes: 'Stunning red inflorescences. Young buds used in Thai salads. Needs shade and very moist, rich soil.',
+  },
   // Medicinal
-  { plantName: 'Aloe Vera', plantCategory: 'medicinal', sowOutdoors: { start: 1, end: 12 }, harvest: { start: 1, end: 12 }, notes: 'Year-round planting and harvesting. Needs well-draining soil.' },
-  { plantName: 'Moringa', plantCategory: 'medicinal', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 1, end: 12 }, notes: 'Extremely fast growing. Leaves harvestable year-round once established.' },
-  { plantName: 'Butterfly Pea', plantCategory: 'medicinal', sowOutdoors: { start: 5, end: 8 }, harvest: { start: 7, end: 12 }, notes: 'อัญชัน - used for blue tea and food coloring. Easy to grow climbing vine.' },
-  { plantName: 'Centella Asiatica', plantCategory: 'medicinal', sowOutdoors: { start: 5, end: 9 }, harvest: { start: 1, end: 12 }, notes: 'บัวบก - Traditional Thai medicinal herb. Ground cover. Loves moisture.' },
+  {
+    plantName: 'Andrographis (Fah Talai Jone)',
+    plantCategory: 'medicinal' as PlantCategory,
+    sowOutdoors: { start: 5, end: 7 },
+    harvest: { start: 7, end: 10 },
+    notes: 'Thai traditional cold remedy. Very bitter leaves. Fast-growing annual. Harvest before flowering for strongest potency.',
+  },
+  {
+    plantName: 'Aloe Vera (Wan Hang Kharok)',
+    plantCategory: 'medicinal' as PlantCategory,
+    sowOutdoors: { start: 3, end: 5 },
+    harvest: { start: 6, end: 12 },
+    notes: 'Succulent for burns and skin care. Needs sandy, well-drained soil. Minimal water. Shade in peak hot season.',
+  },
+  {
+    plantName: 'Gotu Kola (Bua Bok)',
+    plantCategory: 'medicinal' as PlantCategory,
+    sowOutdoors: { start: 4, end: 9 },
+    harvest: { start: 6, end: 11 },
+    notes: 'Medicinal ground cover for memory and skin health. Loves moisture and shade. Can grow in boggy areas. Harvest leaves continuously.',
+  },
+  {
+    plantName: 'Noni (Yao)',
+    plantCategory: 'medicinal' as PlantCategory,
+    sowOutdoors: { start: 5, end: 7 },
+    harvest: { start: 10, end: 4 },
+    notes: 'Hardy medicinal tree. Fruits year-round once mature. Very tolerant of poor soil and coastal conditions. Strong smell when fruiting.',
+  },
+  {
+    plantName: 'Pandan (Bai Toey)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 4, end: 7 },
+    harvest: { start: 7, end: 12 },
+    notes: 'Aromatic leaves for desserts and rice. Shade-tolerant. Needs consistent moisture. Propagate by suckers.',
+  },
+  {
+    plantName: 'Chives (Kui Chai)',
+    plantCategory: 'herb' as PlantCategory,
+    sowOutdoors: { start: 10, end: 2 },
+    harvest: { start: 11, end: 4 },
+    notes: 'Garlic chives popular in Thai cooking. Cool-season crop. Divide clumps to propagate. Harvest by cutting leaves to base.',
+  },
 ];
 
 export function getPlantingWindowsForMonth(month: number): PlantingWindow[] {
-  return thaiPlantingCalendar.filter((p) => {
-    const inWindow = (window?: { start: number; end: number }) => {
-      if (!window) return false;
-      if (window.start <= window.end) {
-        return month >= window.start && month <= window.end;
+  if (month < 1 || month > 12) return [];
+  return thaiPlants.filter((p) => {
+    const windows = [p.sowIndoors, p.sowOutdoors, p.transplant, p.harvest].filter(Boolean) as { start: number; end: number }[];
+    return windows.some((w) => {
+      if (w.start <= w.end) {
+        return month >= w.start && month <= w.end;
       }
-      // Wraps around year (e.g., Oct-Feb = 10-2)
-      return month >= window.start || month <= window.end;
-    };
-
-    return inWindow(p.sowIndoors) || inWindow(p.sowOutdoors) || inWindow(p.transplant) || inWindow(p.harvest);
+      // Wraps around year end (e.g., start 11, end 2)
+      return month >= w.start || month <= w.end;
+    });
   });
 }
 
-export function getActivityForPlant(plant: PlantingWindow, month: number): string[] {
-  const activities: string[] = [];
+export function getActivityForPlant(
+  plant: PlantingWindow,
+  month: number
+): { type: 'sow_indoors' | 'sow_outdoors' | 'transplant' | 'harvest' | 'none'; active: boolean; message: string }[] {
+  if (month < 1 || month > 12) return [];
 
-  const inWindow = (window?: { start: number; end: number }) => {
-    if (!window) return false;
-    if (window.start <= window.end) {
-      return month >= window.start && month <= window.end;
-    }
-    return month >= window.start || month <= window.end;
+  const inWindow = (w?: { start: number; end: number }) => {
+    if (!w) return false;
+    if (w.start <= w.end) return month >= w.start && month <= w.end;
+    return month >= w.start || month <= w.end;
   };
 
-  if (inWindow(plant.sowIndoors)) activities.push('Sow indoors');
-  if (inWindow(plant.sowOutdoors)) activities.push('Sow outdoors');
-  if (inWindow(plant.transplant)) activities.push('Transplant');
-  if (inWindow(plant.harvest)) activities.push('Harvest');
-
-  return activities;
+  return [
+    {
+      type: 'sow_indoors',
+      active: inWindow(plant.sowIndoors),
+      message: inWindow(plant.sowIndoors) ? 'Ideal time to sow indoors' : 'Not in indoor sowing window',
+    },
+    {
+      type: 'sow_outdoors',
+      active: inWindow(plant.sowOutdoors),
+      message: inWindow(plant.sowOutdoors) ? 'Ideal time to sow outdoors' : 'Not in outdoor sowing window',
+    },
+    {
+      type: 'transplant',
+      active: inWindow(plant.transplant),
+      message: inWindow(plant.transplant) ? 'Ideal time to transplant seedlings' : 'Not in transplant window',
+    },
+    {
+      type: 'harvest',
+      active: inWindow(plant.harvest),
+      message: inWindow(plant.harvest) ? 'Harvest window is open' : 'Not in harvest window',
+    },
+  ];
 }

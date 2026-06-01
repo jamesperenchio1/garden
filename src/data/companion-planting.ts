@@ -1,142 +1,102 @@
-import type { CompanionRelationship, Compatibility } from '@/types/companion';
+import type { CompanionRelation } from '@/types';
 
-// Comprehensive companion planting data with focus on Thai garden plants
-export const companionData: CompanionRelationship[] = [
-  // Tomato companions
-  { plant1: 'Tomato', plant2: 'Basil', compatibility: 'beneficial', reason: 'Basil repels aphids, flies, and mosquitoes. Improves tomato flavor and growth.' },
-  { plant1: 'Tomato', plant2: 'Carrot', compatibility: 'beneficial', reason: 'Carrots loosen soil for tomato roots. Tomatoes provide shade for carrots.' },
-  { plant1: 'Tomato', plant2: 'Marigold', compatibility: 'beneficial', reason: 'Marigolds repel nematodes, whiteflies, and other pests from tomatoes.' },
-  { plant1: 'Tomato', plant2: 'Pepper', compatibility: 'beneficial', reason: 'Similar growing requirements. Peppers deter some tomato pests.' },
-  { plant1: 'Tomato', plant2: 'Fennel', compatibility: 'harmful', reason: 'Fennel inhibits tomato growth through allelopathic chemicals.' },
-  { plant1: 'Tomato', plant2: 'Cabbage', compatibility: 'harmful', reason: 'Both are heavy feeders and compete for nutrients. Tomatoes stunt brassica growth.' },
-  { plant1: 'Tomato', plant2: 'Corn', compatibility: 'harmful', reason: 'Both attract the same pests (tomato hornworm/corn earworm).' },
+export const companionRelations: CompanionRelation[] = [
+  // Beneficial pairs
+  { plantA: 'Thai Bird Chili (Prik Kee Noo)', plantB: 'Marigold (Dao Ruang)', relationship: 'beneficial', reason: 'Marigold roots deter nematodes that attack chili roots.' },
+  { plantA: 'Thai Bird Chili (Prik Kee Noo)', plantB: 'Thai Basil (Bai Horapha)', relationship: 'beneficial', reason: 'Basil may repel aphids, whitefly, and improve chili flavor.' },
+  { plantA: 'Thai Eggplant (Makhuea Pro)', plantB: 'Marigold (Dao Ruang)', relationship: 'beneficial', reason: 'Marigolds suppress root-knot nematodes common in eggplant.' },
+  { plantA: 'Thai Eggplant (Makhuea Pro)', plantB: 'Thai Basil (Bai Horapha)', relationship: 'beneficial', reason: 'Basil masks eggplant from flea beetles and spider mites.' },
+  { plantA: 'Long Bean (Thua Pluak)', plantB: 'Corn', relationship: 'beneficial', reason: 'Beans fix nitrogen for heavy-feeding corn; corn provides support.' },
+  { plantA: 'Long Bean (Thua Pluak)', plantB: 'Okra (Krachiap Khao)', relationship: 'beneficial', reason: 'Similar cultural needs; okra provides light shade for bean roots.' },
+  { plantA: 'Morning Glory (Pak Boong)', plantB: 'Long Bean (Thua Pluak)', relationship: 'beneficial', reason: 'Different root zones reduce competition; bean trellis shades water bed.' },
+  { plantA: 'Thai Bitter Melon (Mara Khee Nok)', plantB: 'Nasturtium', relationship: 'beneficial', reason: 'Nasturtium traps aphids away from melon vines.' },
+  { plantA: 'Thai Bitter Melon (Mara Khee Nok)', plantB: 'Thai Basil (Bai Horapha)', relationship: 'beneficial', reason: 'Basil repels flies and mosquitoes around melon foliage.' },
+  { plantA: 'Chinese Kale (Pak Kana)', plantB: 'Dill', relationship: 'beneficial', reason: 'Dill attracts beneficial wasps that prey on brassica caterpillars.' },
+  { plantA: 'Chinese Kale (Pak Kana)', plantB: 'Coriander (Phak Chi)', relationship: 'beneficial', reason: 'Coriander attracts hoverflies that eat aphids on kale.' },
+  { plantA: 'Winged Bean (Thua Phuu)', plantB: 'Corn', relationship: 'beneficial', reason: 'Winged beans climb corn stalks and fix nitrogen.' },
+  { plantA: 'Winged Bean (Thua Phuu)', plantB: 'Okra (Krachiap Khao)', relationship: 'beneficial', reason: 'Okra provides partial shade during hottest months.' },
+  { plantA: 'Okra (Krachiap Khao)', plantB: 'Peppermint', relationship: 'beneficial', reason: 'Mint may deter ants and aphids; keep mint contained.' },
+  { plantA: 'Yardlong Bean (Thua Fak Yao)', plantB: 'Corn', relationship: 'beneficial', reason: 'Classic three-sisters complement; beans climb corn and fix nitrogen.' },
+  { plantA: 'Thai Cucumber (Taeng Raet)', plantB: 'Nasturtium', relationship: 'beneficial', reason: 'Nasturtiums lure cucumber beetles and aphids away.' },
+  { plantA: 'Thai Cucumber (Taeng Raet)', plantB: 'Coriander (Phak Chi)', relationship: 'beneficial', reason: 'Coriander flowers attract pollinators and predatory insects.' },
+  { plantA: 'Thai Basil (Bai Horapha)', plantB: 'Tomato', relationship: 'beneficial', reason: 'Basil repels thrips, flies, and mosquitoes; may improve tomato flavor.' },
+  { plantA: 'Thai Basil (Bai Horapha)', plantB: 'Thai Cucumber (Taeng Raet)', relationship: 'beneficial', reason: 'Basil deters pests common to cucurbits.' },
+  { plantA: 'Holy Basil (Bai Kraphao)', plantB: 'Pepper', relationship: 'beneficial', reason: 'Holy basil may repel spider mites and aphids from pepper plants.' },
+  { plantA: 'Lemongrass (Ta Khai)', plantB: 'Thai Eggplant (Makhuea Pro)', relationship: 'beneficial', reason: 'Lemongrass deters aphids and whitefly; tall growth shades eggplant slightly.' },
+  { plantA: 'Lemongrass (Ta Khai)', plantB: 'Galangal (Kha)', relationship: 'beneficial', reason: 'Both aromatic grasses share cultural needs; interplanting confuses pests.' },
+  { plantA: 'Galangal (Kha)', plantB: 'Turmeric (Khamin)', relationship: 'beneficial', reason: 'Both rhizome crops thrive in similar partial shade and rich soil.' },
+  { plantA: 'Coriander (Phak Chi)', plantB: 'Spinach', relationship: 'beneficial', reason: 'Coriander bolts later when shaded by spinach in cool season.' },
+  { plantA: 'Vietnamese Coriander (Phak Phai)', plantB: 'Gotu Kola (Bua Bok)', relationship: 'beneficial', reason: 'Both moisture-loving herbs create a living mulch together.' },
+  { plantA: 'Turmeric (Khamin)', plantB: 'Banana (Kluai)', relationship: 'beneficial', reason: 'Turmeric grows well in banana shade; bananas benefit from turmeric pest deterrence.' },
+  { plantA: 'Papaya (Malako)', plantB: 'Lemongrass (Ta Khai)', relationship: 'beneficial', reason: 'Lemongrass border around papaya deters aphids and grasshoppers.' },
+  { plantA: 'Pineapple (Sapparot)', plantB: 'Marigold (Dao Ruang)', relationship: 'beneficial', reason: 'Marigold intercropped with pineapple suppresses nematodes in sandy soil.' },
+  { plantA: 'Banana (Kluai)', plantB: 'Papaya (Malako)', relationship: 'beneficial', reason: 'Different root depths reduce competition; banana mulch benefits papaya.' },
+  { plantA: 'Dragon Fruit (Kaeo Mangkon)', plantB: 'Peanut', relationship: 'beneficial', reason: 'Peanut ground cover fixes nitrogen and suppresses weeds under dragon fruit posts.' },
+  { plantA: 'Guava (Farang)', plantB: 'Lemongrass (Ta Khai)', relationship: 'beneficial', reason: 'Lemongrass border helps repel fruit flies from guava.' },
+  { plantA: 'Marigold (Dao Ruang)', plantB: 'Thai Bird Chili (Prik Kee Noo)', relationship: 'beneficial', reason: 'Marigold roots exude compounds toxic to nematodes affecting chili.' },
+  { plantA: 'Jasmine (Mali)', plantB: 'Bougainvillea (Fueng Fah)', relationship: 'beneficial', reason: 'Different flowering cycles support year-round pollinator presence.' },
+  { plantA: 'Butterfly Pea (Anchan)', plantB: 'Yardlong Bean (Thua Fak Yao)', relationship: 'beneficial', reason: 'Butterfly pea is a nitrogen-fixing vine that can share trellis space.' },
+  { plantA: 'Andrographis (Fah Talai Jone)', plantB: 'Galangal (Kha)', relationship: 'beneficial', reason: 'Similar partial-shade medicinal herb guild; pest confusion effect.' },
+  { plantA: 'Aloe Vera (Wan Hang Kharok)', plantB: 'Pineapple (Sapparot)', relationship: 'beneficial', reason: 'Both drought-tolerant; aloe can indicate overwatering for pineapple beds.' },
+  { plantA: 'Gotu Kola (Bua Bok)', plantB: 'Torch Ginger (Dala)', relationship: 'beneficial', reason: 'Gotu kola acts as living mulch holding moisture for torch ginger roots.' },
+  { plantA: 'Noni (Yao)', plantB: 'Pandan (Bai Toey)', relationship: 'beneficial', reason: 'Pandan thrives in noni shade; both used in traditional Thai wellness.' },
+  { plantA: 'Pandan (Bai Toey)', plantB: 'Turmeric (Khamin)', relationship: 'beneficial', reason: 'Both shade-loving aromatics with similar moisture and soil needs.' },
+  { plantA: 'Chives (Kui Chai)', plantB: 'Chinese Kale (Pak Kana)', relationship: 'beneficial', reason: 'Chives may deter aphids and cabbage worms from brassicas.' },
 
-  // Thai Basil companions
-  { plant1: 'Thai Basil', plant2: 'Pepper', compatibility: 'beneficial', reason: 'Basil improves pepper flavor and repels aphids, spider mites, and mosquitoes.' },
-  { plant1: 'Thai Basil', plant2: 'Tomato', compatibility: 'beneficial', reason: 'Classic companion. Basil repels flies and mosquitoes, enhances tomato flavor.' },
-  { plant1: 'Thai Basil', plant2: 'Lettuce', compatibility: 'beneficial', reason: 'Basil repels slugs and aphids that attack lettuce.' },
-  { plant1: 'Thai Basil', plant2: 'Sage', compatibility: 'harmful', reason: 'Sage can inhibit basil growth. Both produce strong essential oils that conflict.' },
-
-  // Chili/Pepper companions
-  { plant1: 'Chili Pepper', plant2: 'Tomato', compatibility: 'beneficial', reason: 'Similar growing needs. Peppers benefit from tomato shade in hot Thai climate.' },
-  { plant1: 'Chili Pepper', plant2: 'Carrot', compatibility: 'beneficial', reason: 'Carrots help break up soil. Peppers provide shade for carrots.' },
-  { plant1: 'Chili Pepper', plant2: 'Onion', compatibility: 'beneficial', reason: 'Onions deter many pests. Good ground cover around peppers.' },
-  { plant1: 'Chili Pepper', plant2: 'Fennel', compatibility: 'harmful', reason: 'Fennel inhibits pepper growth through root secretions.' },
-  { plant1: 'Chili Pepper', plant2: 'Bean', compatibility: 'harmful', reason: 'Beans can shade out peppers and both compete for space.' },
-
-  // Lettuce companions
-  { plant1: 'Lettuce', plant2: 'Carrot', compatibility: 'beneficial', reason: 'Lettuce shades soil keeping carrots cool. Different root depths avoid competition.' },
-  { plant1: 'Lettuce', plant2: 'Radish', compatibility: 'beneficial', reason: 'Radishes mature fast and break up soil before lettuce needs the space.' },
-  { plant1: 'Lettuce', plant2: 'Strawberry', compatibility: 'beneficial', reason: 'Good ground cover combination. Lettuce keeps soil moist for strawberries.' },
-  { plant1: 'Lettuce', plant2: 'Celery', compatibility: 'harmful', reason: 'Both are heavy water users and compete in similar root zones.' },
-
-  // Kale companions
-  { plant1: 'Kale', plant2: 'Beet', compatibility: 'beneficial', reason: 'Different root depths. Beets add minerals to soil that benefit kale.' },
-  { plant1: 'Kale', plant2: 'Celery', compatibility: 'beneficial', reason: 'Celery repels white cabbage butterfly that attacks kale.' },
-  { plant1: 'Kale', plant2: 'Onion', compatibility: 'beneficial', reason: 'Onions repel many kale pests including aphids and flea beetles.' },
-  { plant1: 'Kale', plant2: 'Marigold', compatibility: 'beneficial', reason: 'Marigolds trap aphids and repel other kale pests.' },
-  { plant1: 'Kale', plant2: 'Strawberry', compatibility: 'harmful', reason: 'Kale and strawberries compete for similar nutrients and space.' },
-  { plant1: 'Kale', plant2: 'Tomato', compatibility: 'harmful', reason: 'Both are heavy feeders competing for the same nutrients.' },
-
-  // Cucumber companions
-  { plant1: 'Cucumber', plant2: 'Bean', compatibility: 'beneficial', reason: 'Beans fix nitrogen that cucumbers love. Good trellis sharing.' },
-  { plant1: 'Cucumber', plant2: 'Corn', compatibility: 'beneficial', reason: 'Corn provides natural trellis and shade for cucumbers.' },
-  { plant1: 'Cucumber', plant2: 'Dill', compatibility: 'beneficial', reason: 'Dill attracts beneficial predator insects that protect cucumbers.' },
-  { plant1: 'Cucumber', plant2: 'Sunflower', compatibility: 'beneficial', reason: 'Sunflowers attract pollinators and provide support structure.' },
-  { plant1: 'Cucumber', plant2: 'Potato', compatibility: 'harmful', reason: 'Both are susceptible to blight. Potatoes compete for water.' },
-  { plant1: 'Cucumber', plant2: 'Melon', compatibility: 'harmful', reason: 'Cross-pollination risk and same pest susceptibility.' },
-
-  // Lemongrass (Thai staple)
-  { plant1: 'Lemongrass', plant2: 'Tomato', compatibility: 'beneficial', reason: 'Lemongrass repels whiteflies, mosquitoes, and other pests from tomatoes.' },
-  { plant1: 'Lemongrass', plant2: 'Pepper', compatibility: 'beneficial', reason: 'Strong citronella scent deters many common pepper pests.' },
-  { plant1: 'Lemongrass', plant2: 'Marigold', compatibility: 'beneficial', reason: 'Both are excellent pest deterrents. Together they create a pest barrier.' },
-  { plant1: 'Lemongrass', plant2: 'Mint', compatibility: 'neutral', reason: 'Both spread aggressively. Keep contained to prevent competition.' },
-
-  // Morning Glory / Kangkong (Water Spinach - Thai staple)
-  { plant1: 'Water Spinach', plant2: 'Lettuce', compatibility: 'beneficial', reason: 'Water spinach provides shade for heat-sensitive lettuce in Thai climate.' },
-  { plant1: 'Water Spinach', plant2: 'Mint', compatibility: 'neutral', reason: 'Both enjoy moist conditions but can compete if unmanaged.' },
-
-  // Papaya
-  { plant1: 'Papaya', plant2: 'Banana', compatibility: 'beneficial', reason: 'Bananas provide wind protection. Similar tropical growing conditions.' },
-  { plant1: 'Papaya', plant2: 'Lemongrass', compatibility: 'beneficial', reason: 'Lemongrass deters pests and acts as ground cover around papaya.' },
-  { plant1: 'Papaya', plant2: 'Sweet Potato', compatibility: 'beneficial', reason: 'Sweet potato acts as living mulch, keeping soil moist for papaya.' },
-
-  // Cilantro/Coriander (pak chee - Thai staple)
-  { plant1: 'Cilantro', plant2: 'Tomato', compatibility: 'beneficial', reason: 'Cilantro attracts beneficial insects and repels aphids from tomatoes.' },
-  { plant1: 'Cilantro', plant2: 'Pepper', compatibility: 'beneficial', reason: 'Attracts hoverflies that eat aphids on peppers.' },
-  { plant1: 'Cilantro', plant2: 'Spinach', compatibility: 'beneficial', reason: 'Both enjoy cooler conditions. Good succession planting partners.' },
-  { plant1: 'Cilantro', plant2: 'Fennel', compatibility: 'harmful', reason: 'Cross-pollination can affect cilantro seed quality.' },
-
-  // Mint companions
-  { plant1: 'Mint', plant2: 'Cabbage', compatibility: 'beneficial', reason: 'Mint repels cabbage moths, flea beetles, and ants.' },
-  { plant1: 'Mint', plant2: 'Tomato', compatibility: 'beneficial', reason: 'Mint deters aphids and improves tomato health. Keep mint contained.' },
-  { plant1: 'Mint', plant2: 'Parsley', compatibility: 'harmful', reason: 'Both spread aggressively and compete for the same space and nutrients.' },
-
-  // Eggplant
-  { plant1: 'Eggplant', plant2: 'Pepper', compatibility: 'beneficial', reason: 'Similar growing needs. Peppers help deter some eggplant pests.' },
-  { plant1: 'Eggplant', plant2: 'Marigold', compatibility: 'beneficial', reason: 'Marigolds repel nematodes and beetles that attack eggplant.' },
-  { plant1: 'Eggplant', plant2: 'Bean', compatibility: 'beneficial', reason: 'Beans fix nitrogen that eggplant needs for fruiting.' },
-  { plant1: 'Eggplant', plant2: 'Fennel', compatibility: 'harmful', reason: 'Fennel root secretions inhibit eggplant growth.' },
-
-  // Dragon Fruit
-  { plant1: 'Dragon Fruit', plant2: 'Marigold', compatibility: 'beneficial', reason: 'Marigolds attract pollinators essential for dragon fruit flowering.' },
-  { plant1: 'Dragon Fruit', plant2: 'Lemongrass', compatibility: 'beneficial', reason: 'Lemongrass deters pests and acts as ground cover for dragon fruit posts.' },
-
-  // Galangal (Thai ginger)
-  { plant1: 'Galangal', plant2: 'Turmeric', compatibility: 'beneficial', reason: 'Similar growing conditions. Both enjoy shade and moisture.' },
-  { plant1: 'Galangal', plant2: 'Lemongrass', compatibility: 'beneficial', reason: 'Both are Thai kitchen garden staples. Lemongrass provides pest protection.' },
-
-  // Bean companions
-  { plant1: 'Bean', plant2: 'Corn', compatibility: 'beneficial', reason: 'Classic Three Sisters companion. Beans fix nitrogen for corn, corn provides support.' },
-  { plant1: 'Bean', plant2: 'Squash', compatibility: 'beneficial', reason: 'Three Sisters. Squash provides ground cover reducing weeds.' },
-  { plant1: 'Bean', plant2: 'Onion', compatibility: 'harmful', reason: 'Onions inhibit bean growth through chemical compounds.' },
-  { plant1: 'Bean', plant2: 'Garlic', compatibility: 'harmful', reason: 'Garlic inhibits bean growth. Keep well separated.' },
-
-  // Marigold (universal companion)
-  { plant1: 'Marigold', plant2: 'Most vegetables', compatibility: 'beneficial', reason: 'Marigolds repel nematodes, whiteflies, and many pests. Attract pollinators.' },
-
-  // Sunflower
-  { plant1: 'Sunflower', plant2: 'Corn', compatibility: 'beneficial', reason: 'Both attract pollinators. Sunflowers can serve as trap crops for pests.' },
-  { plant1: 'Sunflower', plant2: 'Squash', compatibility: 'beneficial', reason: 'Sunflowers attract pollinators crucial for squash production.' },
-  { plant1: 'Sunflower', plant2: 'Potato', compatibility: 'harmful', reason: 'Sunflower root compounds can inhibit potato growth.' },
+  // Harmful / antagonistic pairs
+  { plantA: 'Thai Bird Chili (Prik Kee Noo)', plantB: 'Fennel', relationship: 'harmful', reason: 'Fennel secretes allelopathic compounds that inhibit chili growth.' },
+  { plantA: 'Thai Eggplant (Makhuea Pro)', plantB: 'Potato', relationship: 'harmful', reason: 'Both are in the Solanaceae family and share pests and diseases (blight, wilt).' },
+  { plantA: 'Long Bean (Thua Pluak)', plantB: 'Onion', relationship: 'harmful', reason: 'Onions may stunt legume growth and reduce nitrogen fixation.' },
+  { plantA: 'Morning Glory (Pak Boong)', plantB: 'Sweet Potato', relationship: 'harmful', reason: 'Both are in the Convolvulaceae family; shared pests and similar nutrient demands.' },
+  { plantA: 'Thai Bitter Melon (Mara Khee Nok)', plantB: 'Potato', relationship: 'harmful', reason: 'Both susceptible to similar fungal wilts and beetle pests.' },
+  { plantA: 'Chinese Kale (Pak Kana)', plantB: 'Strawberry', relationship: 'harmful', reason: 'Both compete for similar nutrients; strawberry may harbor clubroot.' },
+  { plantA: 'Winged Bean (Thua Phuu)', plantB: 'Garlic', relationship: 'harmful', reason: 'Alliums can inhibit rhizobium bacteria needed by legumes.' },
+  { plantA: 'Okra (Krachiap Khao)', plantB: 'Sweet Potato', relationship: 'harmful', reason: 'Sweet potato vines overtake and shade out okra seedlings.' },
+  { plantA: 'Yardlong Bean (Thua Fak Yao)', plantB: 'Fennel', relationship: 'harmful', reason: 'Fennel allelopathy suppresses legume germination and growth.' },
+  { plantA: 'Thai Cucumber (Taeng Raet)', plantB: 'Potato', relationship: 'harmful', reason: 'Potato and cucumber share susceptibility to Phytophthora blight.' },
+  { plantA: 'Thai Basil (Bai Horapha)', plantB: 'Rue', relationship: 'harmful', reason: 'Rue can inhibit basil growth; both compete for similar nutrients.' },
+  { plantA: 'Holy Basil (Bai Kraphao)', plantB: 'Sage', relationship: 'harmful', reason: 'Different moisture needs; sage prefers much drier conditions.' },
+  { plantA: 'Coriander (Phak Chi)', plantB: 'Fennel', relationship: 'harmful', reason: 'Fennel allelopathy stunts coriander growth and germination.' },
+  { plantA: 'Galangal (Kha)', plantB: 'Peanut', relationship: 'harmful', reason: 'Peanut ground cover can trap too much moisture around galangal rhizomes, causing rot.' },
+  { plantA: 'Papaya (Malako)', plantB: 'Papaya (Malako)', relationship: 'harmful', reason: 'Overcrowding papaya causes poor air circulation and spreads ringspot virus.' },
+  { plantA: 'Banana (Kluai)', plantB: 'Banana (Kluai)', relationship: 'harmful', reason: 'Planting too close spreads Panama disease and reduces yield.' },
+  { plantA: 'Marigold (Dao Ruang)', plantB: 'Bean', relationship: 'harmful', reason: 'Some marigold varieties can inhibit bean germination; keep at border only.' },
+  { plantA: 'Dragon Fruit (Kaeo Mangkon)', plantB: 'Dragon Fruit (Kaeo Mangkon)', relationship: 'harmful', reason: 'Overcrowding limits light and airflow, increasing fungal rot.' },
 ];
 
-/**
- * Get all unique plant names from the companion database.
- */
-export function getAllCompanionPlants(): string[] {
-  const plants = new Set<string>();
-  companionData.forEach((r) => {
-    plants.add(r.plant1);
-    plants.add(r.plant2);
-  });
-  return Array.from(plants).sort();
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
 }
 
-/**
- * Look up companion compatibility between two plants.
- */
-export function getCompanionship(plant1: string, plant2: string): CompanionRelationship | undefined {
-  return companionData.find(
+export function getCompanionship(
+  a: string,
+  b: string
+): CompanionRelation & { direction: 'direct' | 'inferred' } | null {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  const found = companionRelations.find(
     (r) =>
-      (r.plant1.toLowerCase() === plant1.toLowerCase() && r.plant2.toLowerCase() === plant2.toLowerCase()) ||
-      (r.plant1.toLowerCase() === plant2.toLowerCase() && r.plant2.toLowerCase() === plant1.toLowerCase())
+      (normalizeName(r.plantA) === na && normalizeName(r.plantB) === nb) ||
+      (normalizeName(r.plantA) === nb && normalizeName(r.plantB) === na)
+  );
+  if (!found) return null;
+  return { ...found, direction: 'direct' };
+}
+
+export function getCompanionsFor(plantName: string): CompanionRelation[] {
+  const n = normalizeName(plantName);
+  return companionRelations.filter(
+    (r) =>
+      (normalizeName(r.plantA) === n || normalizeName(r.plantB) === n) &&
+      r.relationship === 'beneficial'
   );
 }
 
-/**
- * Get all companions for a specific plant.
- */
-export function getCompanionsFor(plant: string): { name: string; compatibility: Compatibility; reason: string }[] {
-  const companions: { name: string; compatibility: Compatibility; reason: string }[] = [];
-
-  companionData.forEach((r) => {
-    if (r.plant1.toLowerCase() === plant.toLowerCase()) {
-      companions.push({ name: r.plant2, compatibility: r.compatibility, reason: r.reason });
-    } else if (r.plant2.toLowerCase() === plant.toLowerCase()) {
-      companions.push({ name: r.plant1, compatibility: r.compatibility, reason: r.reason });
-    }
-  });
-
-  return companions;
+export function getAntagonistsFor(plantName: string): CompanionRelation[] {
+  const n = normalizeName(plantName);
+  return companionRelations.filter(
+    (r) =>
+      (normalizeName(r.plantA) === n || normalizeName(r.plantB) === n) &&
+      r.relationship === 'harmful'
+  );
 }

@@ -1,302 +1,349 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Leaf, Droplets, Cloud, CalendarDays, AlertTriangle, CheckCircle, Bell } from 'lucide-react';
-import { db } from '@/lib/db';
-import { useWeather } from '@/hooks/use-weather';
-import { getWeatherDescription, getWeatherIcon } from '@/lib/api/weather';
-import { generateWeatherAlerts } from '@/lib/weather-alerts';
-import { getOverdueTasks, getUpcomingTasks } from '@/lib/notifications';
-import type { Plant } from '@/types/plant';
-import type { Task } from '@/types/calendar';
-import type { HydroSystem } from '@/types/system';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePlants } from "@/hooks/use-plants";
+import { useWeather } from "@/hooks/use-weather";
+import { useAppStore } from "@/store/app-store";
+import { getUpcomingTasks } from "@/lib/notifications";
+import { getMoonPhase, getMoonPhaseEmoji, getMoonPhaseName } from "@/lib/api/moon";
+import { evaluateThaiHazards } from "@/data/thai-hazards";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Sprout,
+  CloudSun,
+  CalendarDays,
+  Moon,
+  ArrowRight,
+  Plus,
+  ClipboardList,
+  AlertTriangle,
+  Wind,
+  Droplets,
+} from "lucide-react";
+import type { Task, PlantCategory } from "@/types";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning, gardener";
+  if (hour < 17) return "Good afternoon, gardener";
+  return "Good evening, gardener";
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function weatherCodeToEmoji(code: number): string {
+  if (code === 0) return "☀️";
+  if (code >= 1 && code <= 3) return "🌤️";
+  if (code >= 45 && code <= 48) return "🌫️";
+  if (code >= 51 && code <= 55) return "🌧️";
+  if (code >= 56 && code <= 57) return "🌧️";
+  if (code >= 61 && code <= 67) return "🌧️";
+  if (code >= 71 && code <= 77) return "🌨️";
+  if (code >= 80 && code <= 82) return "🌦️";
+  if (code >= 85 && code <= 86) return "🌨️";
+  if (code >= 95 && code <= 99) return "⛈️";
+  return "🌡️";
+}
+
+function weatherCodeToCondition(code: number): string {
+  if (code === 0) return "Clear sky";
+  if (code >= 1 && code <= 3) return "Partly cloudy";
+  if (code >= 45 && code <= 48) return "Foggy";
+  if (code >= 51 && code <= 67) return "Rainy";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Showers";
+  if (code >= 85 && code <= 86) return "Snow showers";
+  if (code >= 95 && code <= 99) return "Thunderstorm";
+  return "Unknown";
+}
+
+const CATEGORY_ORDER: PlantCategory[] = ["vegetable", "herb", "fruit", "flower"];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { plants, loading: plantsLoading } = usePlants();
   const { weather, loading: weatherLoading } = useWeather();
-  const [plants, setPlants] = useState<Plant[]>([]);
-  const [systems, setSystems] = useState<HydroSystem[]>([]);
-  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
-  const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const thaiHazardsEnabled = useAppStore((s) => s.thaiHazardsEnabled);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      const [allPlants, allSystems, upcoming, overdue] = await Promise.all([
-        db.plants.toArray(),
-        db.systems.toArray(),
-        getUpcomingTasks(7),
-        getOverdueTasks(),
-      ]);
-      setPlants(allPlants);
-      setSystems(allSystems);
-      setUpcomingTasks(upcoming);
-      setOverdueTasks(overdue);
-      setLoading(false);
-    }
-    loadData();
+    let cancelled = false;
+    getUpcomingTasks(7).then((t) => {
+      if (!cancelled) {
+        setTasks(t);
+        setTasksLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const healthyCount = plants.filter(
-    (p) => !p.healthTags?.some((t) => t.severity === 'high')
-  ).length;
-  const attentionCount = plants.filter(
-    (p) => p.healthTags?.some((t) => t.severity === 'high')
-  ).length;
+  const moon = useMemo(() => getMoonPhase(), []);
 
-  const weatherAlerts = generateWeatherAlerts(weather);
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of plants) {
+      counts[p.category] = (counts[p.category] || 0) + 1;
+    }
+    return counts;
+  }, [plants]);
+
+  const thaiHazards = useMemo(() => {
+    if (!thaiHazardsEnabled || !weather) return [];
+    return evaluateThaiHazards(
+      new Date(),
+      weather.current.temperature,
+      weather.current.precipitation,
+      weather.current.humidity,
+      weather.current.windSpeed
+    );
+  }, [thaiHazardsEnabled, weather]);
 
   return (
-    <div className="space-y-6">
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Link href="/plants">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <Leaf className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{loading ? '-' : plants.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Plants</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+    <main className="mx-auto max-w-6xl px-4 py-6">
+      {/* Welcome */}
+      <section className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{getGreeting()}</h1>
+        <p className="text-muted-foreground">{formatDate(new Date())}</p>
+      </section>
 
-        <Link href="/designer">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Droplets className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{loading ? '-' : systems.length}</p>
-                  <p className="text-sm text-muted-foreground">Systems</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+      {/* Quick Actions */}
+      <section className="mb-6 flex flex-wrap gap-3">
+        <Button onClick={() => router.push("/plants/new")}>
+          <Plus className="size-4" />
+          Add Plant
+        </Button>
+        <Button variant="outline" onClick={() => router.push("/tasks/new")}>
+          <ClipboardList className="size-4" />
+          Add Task
+        </Button>
+        <Button variant="outline" onClick={() => router.push("/calendar")}>
+          <CalendarDays className="size-4" />
+          View Calendar
+        </Button>
+      </section>
 
+      {/* Dashboard Grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Weather Summary */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100">
-                <CheckCircle className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{loading ? '-' : healthyCount}</p>
-                <p className="text-sm text-muted-foreground">Healthy</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-100">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{loading ? '-' : attentionCount}</p>
-                <p className="text-sm text-muted-foreground">Need Attention</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Weather Alerts */}
-      {weatherAlerts.length > 0 && (
-        <div className="space-y-2">
-          {weatherAlerts.slice(0, 3).map((alert) => (
-            <div
-              key={alert.id}
-              className={`p-3 rounded-lg border flex items-start gap-3 ${
-                alert.severity === 'critical'
-                  ? 'bg-red-50 border-red-200 text-red-900'
-                  : alert.severity === 'warning'
-                  ? 'bg-amber-50 border-amber-200 text-amber-900'
-                  : 'bg-blue-50 border-blue-200 text-blue-900'
-              }`}
-            >
-              <AlertTriangle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
-                alert.severity === 'critical' ? 'text-red-600' : alert.severity === 'warning' ? 'text-amber-600' : 'text-blue-600'
-              }`} />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{alert.title}</p>
-                <p className="text-xs opacity-90 mt-0.5">{alert.description}</p>
-                <p className="text-xs font-medium mt-1 opacity-80">Action: {alert.action}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Main Content Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Weather Widget */}
-        <Link href="/weather">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Cloud className="h-4 w-4" />
-                Weather
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {weatherLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-24" />
-                  <Skeleton className="h-4 w-32" />
-                </div>
-              ) : weather ? (
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-3xl">{getWeatherIcon(weather.current.weatherCode)}</span>
-                    <span className="text-3xl font-bold">{Math.round(weather.current.temperature)}°C</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {getWeatherDescription(weather.current.weatherCode)}
-                  </p>
-                  <div className="flex gap-4 mt-3 text-sm text-muted-foreground">
-                    <span>Humidity: {weather.current.humidity}%</span>
-                    <span>Wind: {Math.round(weather.current.windSpeed)} km/h</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Unable to load weather</p>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* Today's Tasks */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarDays className="h-4 w-4" />
-              Upcoming Tasks
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CloudSun className="size-4 text-primary" />
+              Weather
             </CardTitle>
-            <CardDescription>Next 7 days</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {weatherLoading || !weather ? (
               <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
               </div>
-            ) : overdueTasks.length === 0 && upcomingTasks.length === 0 ? (
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{weatherCodeToEmoji(weather.current.weatherCode)}</span>
+                  <div>
+                    <p className="text-lg font-medium">{Math.round(weather.current.temperature)}°C</p>
+                    <p className="text-sm text-muted-foreground">
+                      {weatherCodeToCondition(weather.current.weatherCode)}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Droplets className="size-3.5" />
+                    <span>{weather.current.humidity}% humidity</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Wind className="size-3.5" />
+                    <span>{Math.round(weather.current.windSpeed)} km/h</span>
+                  </div>
+                </div>
+                <Link
+                  href="/weather"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                >
+                  Full forecast <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Plants Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sprout className="size-4 text-primary" />
+              Plants
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {plantsLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-lg font-medium">
+                  {plants.length} {plants.length === 1 ? "plant" : "plants"} total
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORY_ORDER.map((cat) => {
+                    const count = categoryCounts[cat] || 0;
+                    if (count === 0) return null;
+                    return (
+                      <Badge key={cat} variant="secondary">
+                        {count} {cat}
+                        {count !== 1 ? "s" : ""}
+                      </Badge>
+                    );
+                  })}
+                  {plants.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No plants yet.</p>
+                  )}
+                </div>
+                <Link
+                  href="/plants"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                >
+                  View all plants <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Moon Phase */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Moon className="size-4 text-primary" />
+              Moon Phase
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{getMoonPhaseEmoji(moon.phase)}</span>
+                <div>
+                  <p className="font-medium">{getMoonPhaseName(moon.phase)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {moon.illumination}% illumination
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {moon.plantingAdvice}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Tasks */}
+        <Card className="md:col-span-2 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="size-4 text-primary" />
+              Upcoming Tasks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tasksLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                <div className="h-4 w-full animate-pulse rounded bg-muted" />
+              </div>
+            ) : tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No upcoming tasks. Add plants to generate tasks.
+                No tasks due in the next 7 days. You&apos;re all caught up!
               </p>
             ) : (
               <div className="space-y-2">
-                {overdueTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-2 text-sm">
-                    <Badge variant="destructive" className="text-xs">Overdue</Badge>
-                    <span>{task.title}</span>
+                {tasks.slice(0, 6).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between rounded-lg border px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{task.title}</p>
+                      {task.description && (
+                        <p className="text-xs text-muted-foreground">{task.description}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(task.dueDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
                   </div>
                 ))}
-                {upcomingTasks.slice(0, 5).map((task) => (
-                  <div key={task.id} className="flex items-center gap-2 text-sm">
-                    <Badge variant="secondary" className="text-xs">{task.type}</Badge>
-                    <span>{task.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Plants */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Leaf className="h-4 w-4" />
-              Recent Plants
-            </CardTitle>
-            <CardDescription>Latest additions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-              </div>
-            ) : plants.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                <p>No plants yet.</p>
-                <Link href="/plants/new" className="text-green-600 hover:underline">
-                  Add your first plant
+                <Link
+                  href="/tasks"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                >
+                  View all tasks <ArrowRight className="size-3.5" />
                 </Link>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {plants.slice(0, 5).map((plant) => (
-                  <Link
-                    key={plant.id}
-                    href={`/plants/${plant.id}`}
-                    className="flex items-center justify-between text-sm hover:bg-muted p-1 rounded"
-                  >
-                    <span className="font-medium">{plant.name}</span>
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {plant.category}
-                    </Badge>
-                  </Link>
-                ))}
-              </div>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/plants/new"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors text-sm font-medium"
-            >
-              <Leaf className="h-4 w-4" />
-              Add Plant
-            </Link>
-            <Link
-              href="/weather"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
-            >
-              <Cloud className="h-4 w-4" />
-              Check Weather
-            </Link>
-            <Link
-              href="/calendar"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
-            >
-              <CalendarDays className="h-4 w-4" />
-              View Calendar
-            </Link>
-            <Link
-              href="/designer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-muted transition-colors text-sm font-medium"
-            >
-              <Droplets className="h-4 w-4" />
-              Design System
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        {/* Thai Hazards */}
+        {thaiHazardsEnabled && (
+          <Card className="border-destructive/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="size-4" />
+                Active Hazards
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {thaiHazards.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active hazards right now.</p>
+              ) : (
+                <div className="space-y-2">
+                  {thaiHazards.slice(0, 4).map((h, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-destructive/10 bg-destructive/5 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block size-2 rounded-full ${
+                            h.severity === "extreme" || h.severity === "high"
+                              ? "bg-destructive"
+                              : "bg-amber-500"
+                          }`}
+                        />
+                        <p className="text-sm font-medium">{h.title}</p>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{h.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </main>
   );
 }

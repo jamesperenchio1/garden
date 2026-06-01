@@ -1,244 +1,146 @@
-/**
- * OCR utility for extracting text from seed packet images using Tesseract.js.
- * Enhanced with multi-language support, better parsing, and validation.
- */
+import Tesseract from "tesseract.js";
 
 export interface SeedPacketData {
   plantName?: string;
   variety?: string;
-  scientificName?: string;
   daysToGermination?: number;
-  daysToGerminationRange?: [number, number];
   daysToMaturity?: number;
-  daysToMaturityRange?: [number, number];
-  plantingDepth?: string;
   plantingDepthMm?: number;
-  spacing?: string;
   spacingCm?: number;
-  sunRequirement?: string;
-  temperatureRange?: string;
-  weight?: string;
-  lotNumber?: string;
-  expiryDate?: string;
-  company?: string;
+  sunRequirement?: "full" | "partial" | "shade";
   rawText: string;
-  confidence: number;
-  language: string;
 }
 
-/**
- * Extract seed packet data with improved accuracy.
- * Attempts English first, then falls back to Thai if confidence is low.
- */
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractNumberBefore(text: string, keyword: string): number | undefined {
+  const regex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:days?|d)?\\s*(?:to|until)?\\s*${keyword}`, "i");
+  const match = text.match(regex);
+  if (match) return Math.round(parseFloat(match[1]));
+
+  // Try reverse: keyword followed by number
+  const reverseRegex = new RegExp(`${keyword}[:\\s]*(\\d+(?:\\.\\d+)?)`, "i");
+  const reverseMatch = text.match(reverseRegex);
+  if (reverseMatch) return Math.round(parseFloat(reverseMatch[1]));
+
+  return undefined;
+}
+
+function extractGenericNumber(text: string, patterns: RegExp[]): number | undefined {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const val = parseFloat(match[1]);
+      if (!isNaN(val)) return Math.round(val);
+    }
+  }
+  return undefined;
+}
+
 export async function extractSeedPacketData(imageBlob: Blob): Promise<SeedPacketData> {
-  const Tesseract = await import('tesseract.js');
-
-  // Try English first
-  const workerEng = await Tesseract.createWorker('eng');
-  let bestResult: { text: string; confidence: number; lang: string } = { text: '', confidence: 0, lang: 'eng' };
-
   try {
-    const imageUrl = URL.createObjectURL(imageBlob);
-    const { data } = await workerEng.recognize(imageUrl);
-    URL.revokeObjectURL(imageUrl);
-    bestResult = { text: data.text, confidence: data.confidence, lang: 'eng' };
-  } finally {
-    await workerEng.terminate();
-  }
+    const result = await Tesseract.recognize(imageBlob, "eng", {
+      logger: () => {}, // suppress progress logs
+    });
 
-  // If English confidence is poor (< 40), try Thai
-  if (bestResult.confidence < 40) {
-    try {
-      const workerTha = await Tesseract.createWorker('tha');
-      const imageUrl = URL.createObjectURL(imageBlob);
-      const { data } = await workerTha.recognize(imageUrl);
-      URL.revokeObjectURL(imageUrl);
-      if (data.confidence > bestResult.confidence) {
-        bestResult = { text: data.text, confidence: data.confidence, lang: 'tha' };
-      }
-      await workerTha.terminate();
-    } catch {
-      /* Thai OCR not available or failed, use English result */
+    const rawText = result.data.text;
+    const text = normalizeText(rawText);
+
+    const data: SeedPacketData = { rawText: result.data.text };
+
+    // Plant name: look for common patterns
+    // Try "variety: xxx" or lines that look like a cultivar
+    const varietyMatch = text.match(/variety[:\s]+([a-z0-9\s'-]+)/i);
+    if (varietyMatch) {
+      data.variety = varietyMatch[1].trim().replace(/\s+/g, " ");
     }
-  }
 
-  return parsePacketText(bestResult.text, bestResult.confidence, bestResult.lang);
+    // Plant name heuristics: first capitalized word on original text, or look for "[Name] seeds"
+    const seedMatch = rawText.match(/([A-Za-z\s'-]+?)\s+seeds?/i);
+    if (seedMatch) {
+      data.plantName = seedMatch[1].trim().replace(/\s+/g, " ");
+    }
+
+    // Days to germination
+    data.daysToGermination =
+      extractNumberBefore(text, "germination") ??
+      extractNumberBefore(text, "germinate") ??
+      extractGenericNumber(text, [
+        /germination[:\s]*(\d+)/i,
+        /sprout[:\s]*(\d+)/i,
+        /(?:sprouts?|germinates?)\s*in[:\s]*(\d+)/i,
+      ]);
+
+    // Days to maturity
+    data.daysToMaturity =
+      extractNumberBefore(text, "maturity") ??
+      extractNumberBefore(text, "harvest") ??
+      extractGenericNumber(text, [
+        /maturity[:\s]*(\d+)/i,
+        /days?\s*to\s*harvest[:\s]*(\d+)/i,
+        /harvest[:\s]*(\d+)/i,
+      ]);
+
+    // Planting depth
+    const depthMmMatch = text.match(/(\d+(?:\.\d+)?)\s*mm?\s*(?:deep|depth)/i);
+    const depthCmMatch = text.match(/(\d+(?:\.\d+)?)\s*cm?\s*(?:deep|depth)/i);
+    const depthInMatch = text.match(/(\d+(?:\.\d+)?)\s*in?ch(?:es)?\s*(?:deep|depth)/i);
+    if (depthMmMatch) data.plantingDepthMm = Math.round(parseFloat(depthMmMatch[1]));
+    else if (depthCmMatch) data.plantingDepthMm = Math.round(parseFloat(depthCmMatch[1]) * 10);
+    else if (depthInMatch) data.plantingDepthMm = Math.round(parseFloat(depthInMatch[1]) * 25.4);
+
+    // Spacing
+    const spacingCmMatch = text.match(/(\d+(?:\.\d+)?)\s*cm?\s*(?:apart|spacing|space)/i);
+    const spacingInMatch = text.match(/(\d+(?:\.\d+)?)\s*in?ch(?:es)?\s*(?:apart|spacing|space)/i);
+    if (spacingCmMatch) data.spacingCm = Math.round(parseFloat(spacingCmMatch[1]));
+    else if (spacingInMatch) data.spacingCm = Math.round(parseFloat(spacingInMatch[1]) * 2.54);
+
+    // Sun requirement
+    if (/full\s*sun/i.test(text)) data.sunRequirement = "full";
+    else if (/partial\s*sun/i.test(text) || /partial\s*shade/i.test(text)) data.sunRequirement = "partial";
+    else if (/full\s*shade/i.test(text) || /shade/i.test(text)) data.sunRequirement = "shade";
+
+    return data;
+  } catch (err) {
+    console.error("OCR extraction failed:", err);
+    throw err instanceof Error ? err : new Error("OCR extraction failed");
+  }
 }
 
-function parsePacketText(text: string, confidence: number, language: string): SeedPacketData {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-  const joined = text.toLowerCase().replace(/\s+/g, ' ');
-  const result: SeedPacketData = { rawText: text, confidence, language };
+export function validateSeedPacketData(data: SeedPacketData): {
+  valid: boolean;
+  missing: string[];
+  confidence: "high" | "medium" | "low";
+} {
+  const missing: string[] = [];
 
-  // Plant name detection — first substantial line that isn't a company/weight
-  for (const line of lines) {
-    const clean = line.trim();
-    if (clean.length < 2) continue;
-    if (/^(net wt|weight|lot|exp|date|\d+g|company|brand)/i.test(clean)) continue;
-    if (/^\d/.test(clean) && clean.length < 5) continue;
-    result.plantName = clean;
-    break;
+  if (!data.plantName || data.plantName.length < 2) missing.push("plantName");
+  if (!data.daysToGermination || data.daysToGermination <= 0 || data.daysToGermination > 60) {
+    missing.push("daysToGermination");
   }
-
-  // Scientific name (Latin binomial)
-  const sciMatch = text.match(/\b([A-Z][a-z]+\s+[a-z]+(?:\s+var\.\s+\w+)?)\b/);
-  if (sciMatch && sciMatch[1].length > 5) {
-    result.scientificName = sciMatch[1];
+  if (!data.daysToMaturity || data.daysToMaturity <= 0 || data.daysToMaturity > 999) {
+    missing.push("daysToMaturity");
   }
+  if (!data.plantingDepthMm || data.plantingDepthMm <= 0) missing.push("plantingDepthMm");
+  if (!data.spacingCm || data.spacingCm <= 0) missing.push("spacingCm");
+  if (!data.sunRequirement) missing.push("sunRequirement");
 
-  // Variety — look after "variety" or in parentheses
-  const varietyMatch = text.match(/variety[:\s]+([^\n,]+)/i);
-  if (varietyMatch) result.variety = varietyMatch[1].trim();
+  const fieldCount = 6;
+  const presentCount = fieldCount - missing.length;
 
-  const parenVariety = text.match(/\(([^)]+variety[^)]*)\)/i);
-  if (parenVariety && !result.variety) result.variety = parenVariety[1].trim();
+  let confidence: "high" | "medium" | "low" = "low";
+  if (presentCount >= 5) confidence = "high";
+  else if (presentCount >= 3) confidence = "medium";
 
-  // Days to germination — handle ranges like "7-14 days" or "germination: 10 days"
-  const germPatterns = [
-    /germinat\w*[\s:]*(\d+)[\s-]*(\d+)?\s*(?:days?)?/i,
-    /sprout[\s:]*(\d+)[\s-]*(\d+)?\s*(?:days?)?/i,
-    /(?: emerge|emergence)[\s:]*(\d+)[\s-]*(\d+)?\s*(?:days?)?/i,
-  ];
-  for (const pattern of germPatterns) {
-    const match = joined.match(pattern);
-    if (match) {
-      const min = parseInt(match[1]);
-      const max = match[2] ? parseInt(match[2]) : min;
-      result.daysToGermination = max;
-      result.daysToGerminationRange = [min, max];
-      break;
-    }
-  }
-
-  // Days to maturity / harvest
-  const maturityPatterns = [
-    /(?:matur|harvest)[\s:]*(\d+)[\s-]*(\d+)?\s*(?:days?)?/i,
-    /(?:days?\s+to\s+(?:matur|harvest))[\s:]*(\d+)[\s-]*(\d+)?/i,
-  ];
-  for (const pattern of maturityPatterns) {
-    const match = joined.match(pattern);
-    if (match) {
-      const min = parseInt(match[1]);
-      const max = match[2] ? parseInt(match[2]) : min;
-      result.daysToMaturity = max;
-      result.daysToMaturityRange = [min, max];
-      break;
-    }
-  }
-
-  // Planting depth — parse both text and numeric mm
-  const depthPatterns = [
-    /(?:sowing\s+)?depth[\s:]+([^\n,]+)/i,
-    /plant[\s:]+(\d+\s*(?:mm|cm|in|inch)[^\n,]*)/i,
-    /(\d+\s*(?:mm|cm|in|inch)\s*(?:deep)?)/i,
-  ];
-  for (const pattern of depthPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      result.plantingDepth = match[1].trim();
-      const mmMatch = result.plantingDepth.match(/(\d+)\s*mm/);
-      const cmMatch = result.plantingDepth.match(/(\d+)\s*cm/);
-      const inMatch = result.plantingDepth.match(/(\d+(?:\.\d+)?)\s*(?:in|inch)/);
-      if (mmMatch) result.plantingDepthMm = parseInt(mmMatch[1]);
-      else if (cmMatch) result.plantingDepthMm = parseInt(cmMatch[1]) * 10;
-      else if (inMatch) result.plantingDepthMm = Math.round(parseFloat(inMatch[1]) * 25.4);
-      break;
-    }
-  }
-
-  // Spacing — parse both text and numeric cm
-  const spacingPatterns = [
-    /spac\w*[\s:]+([^\n,]+)/i,
-    /(\d+\s*(?:cm|mm|m|in|inch|ft|foot)\s*(?:apart|between)?)/i,
-  ];
-  for (const pattern of spacingPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      result.spacing = match[1].trim();
-      const cmMatch = result.spacing.match(/(\d+)\s*cm/);
-      const mMatch = result.spacing.match(/(\d+)\s*m/);
-      const inMatch = result.spacing.match(/(\d+(?:\.\d+)?)\s*(?:in|inch)/);
-      if (cmMatch) result.spacingCm = parseInt(cmMatch[1]);
-      else if (mMatch) result.spacingCm = parseInt(mMatch[1]) * 100;
-      else if (inMatch) result.spacingCm = Math.round(parseFloat(inMatch[1]) * 2.54);
-      break;
-    }
-  }
-
-  // Sun requirement
-  const sunPatterns = [
-    /(full\s+sun|partial\s+shade|full\s+shade|partial\s+sun|shade\s+tolerant)/i,
-    /sun[\s:]*(full|partial|shade)/i,
-  ];
-  for (const pattern of sunPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      result.sunRequirement = match[1].trim();
-      break;
-    }
-  }
-
-  // Temperature range
-  const tempMatch = text.match(/(?:temp|temperature)[\s:]*([^\n,°]+(?:°[CF])?[^\n,]*)/i);
-  if (tempMatch) result.temperatureRange = tempMatch[1].trim();
-
-  // Weight / Net Wt
-  const weightMatch = text.match(/(?:net\s*wt|weight)[\.:\s]*([^\n]+)/i);
-  if (weightMatch) result.weight = weightMatch[1].trim();
-
-  // Lot number
-  const lotMatch = text.match(/(?:lot\s*(?:no|Number)?)[\.:\s#]*([A-Za-z0-9-]+)/i);
-  if (lotMatch) result.lotNumber = lotMatch[1].trim();
-
-  // Expiry / Best Before
-  const expMatch = text.match(/(?:exp|expiry|best\s*before|use\s*by)[\.:\s]*([^\n]+)/i);
-  if (expMatch) result.expiryDate = expMatch[1].trim();
-
-  // Company / Brand
-  const companyPatterns = [
-    /(?:by|from|company|brand)[\s:]*([A-Z][A-Za-z0-9\s&]+)(?:\n|$)/,
-    /^([A-Z][A-Za-z0-9\s&]+(?:Seeds?|Co\.?|Ltd\.?|Inc\.?))/m,
-  ];
-  for (const pattern of companyPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      result.company = match[1].trim();
-      break;
-    }
-  }
-
-  return result;
-}
-
-/**
- * Validate extracted data and return warnings for suspicious values.
- */
-export function validateSeedPacketData(data: SeedPacketData): { valid: boolean; warnings: string[] } {
-  const warnings: string[] = [];
-
-  if (!data.plantName || data.plantName.length < 3) {
-    warnings.push('Plant name not detected clearly. Please verify.');
-  }
-
-  if (data.daysToGermination && (data.daysToGermination < 1 || data.daysToGermination > 90)) {
-    warnings.push(`Germination time (${data.daysToGermination} days) seems unusual. Please verify.`);
-  }
-
-  if (data.daysToMaturity && (data.daysToMaturity < 10 || data.daysToMaturity > 730)) {
-    warnings.push(`Maturity time (${data.daysToMaturity} days) seems unusual. Please verify.`);
-  }
-
-  if (data.plantingDepthMm && (data.plantingDepthMm < 1 || data.plantingDepthMm > 100)) {
-    warnings.push(`Planting depth (${data.plantingDepthMm}mm) seems unusual. Please verify.`);
-  }
-
-  if (data.spacingCm && (data.spacingCm < 1 || data.spacingCm > 1000)) {
-    warnings.push(`Spacing (${data.spacingCm}cm) seems unusual. Please verify.`);
-  }
-
-  if (data.confidence < 50) {
-    warnings.push('OCR confidence was low. Please double-check all extracted values.');
-  }
-
-  return { valid: warnings.length === 0, warnings };
+  return {
+    valid: missing.length === 0,
+    missing,
+    confidence,
+  };
 }

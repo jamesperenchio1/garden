@@ -1,500 +1,236 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Badge } from '@/components/ui/badge';
-import { usePlants } from '@/hooks/use-plants';
-import { ArrowLeft, X, Search, Database, Loader2, Check } from 'lucide-react';
-import Link from 'next/link';
-import type { PlantCategory, GrowingMethod, HealthTag, CustomPlant } from '@/types/plant';
-import { db } from '@/lib/db';
-import { searchPlants, getPlantDetail, type UnifiedPlantResult } from '@/lib/api/plants';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { usePlants } from "@/hooks/use-plants";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Sprout } from "lucide-react";
+import type { PlantCategory, GrowingMethod } from "@/types";
 
-const categories: { value: PlantCategory; label: string }[] = [
-  { value: 'vegetable', label: 'Vegetable' },
-  { value: 'herb', label: 'Herb' },
-  { value: 'fruit', label: 'Fruit' },
-  { value: 'flower', label: 'Flower' },
-  { value: 'ornamental', label: 'Ornamental' },
-  { value: 'medicinal', label: 'Medicinal' },
+const CATEGORIES: { label: string; value: PlantCategory }[] = [
+  { label: "Vegetable", value: "vegetable" },
+  { label: "Herb", value: "herb" },
+  { label: "Fruit", value: "fruit" },
+  { label: "Flower", value: "flower" },
+  { label: "Ornamental", value: "ornamental" },
+  { label: "Medicinal", value: "medicinal" },
 ];
 
-const growingMethods: { value: GrowingMethod; label: string; description: string }[] = [
-  { value: 'soil', label: 'Soil', description: 'Traditional soil growing' },
-  { value: 'hydroponic', label: 'Hydroponic', description: 'Water-based nutrient solution' },
-  { value: 'aeroponic', label: 'Aeroponic', description: 'Mist-based root feeding' },
-  { value: 'aquaponic', label: 'Aquaponic', description: 'Fish + plant ecosystem' },
-];
-
-const systemTypes = [
-  'NFT', 'DWC', 'Ebb & Flow', 'Drip', 'Wicking', 'Dutch Bucket',
-  'Kratky', 'Vertical Tower', 'Rail/Gutter', 'Aeroponics', 'Aquaponics',
-];
-
-const healthStatuses: { value: string; label: string; category: HealthTag['category'] }[] = [
-  { value: 'healthy', label: 'Healthy', category: 'overall' },
-  { value: 'thriving', label: 'Thriving', category: 'overall' },
-  { value: 'watch', label: 'Watch', category: 'overall' },
-  { value: 'stressed', label: 'Stressed', category: 'overall' },
-  { value: 'seedling', label: 'Seedling', category: 'overall' },
-  { value: 'dormant', label: 'Dormant', category: 'overall' },
+const GROWING_METHODS: { label: string; value: GrowingMethod }[] = [
+  { label: "Soil", value: "soil" },
+  { label: "Hydroponic", value: "hydroponic" },
+  { label: "Aeroponic", value: "aeroponic" },
+  { label: "Aquaponic", value: "aquaponic" },
 ];
 
 export default function NewPlantPage() {
   const router = useRouter();
   const { addPlant } = usePlants();
-  const [name, setName] = useState('');
-  const [variety, setVariety] = useState('');
-  const [category, setCategory] = useState<PlantCategory>('vegetable');
-  const [growingMethod, setGrowingMethod] = useState<GrowingMethod>('soil');
-  const [systemType, setSystemType] = useState('');
-  const [location, setLocation] = useState('');
-  const [plantedDate, setPlantedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [healthStatus, setHealthStatus] = useState('healthy');
   const [saving, setSaving] = useState(false);
 
-  // ── Lookup state ──────────────────────────────────────────────────────────
-  const [lookupQuery, setLookupQuery] = useState('');
-  const [lookupResults, setLookupResults] = useState<
-    Array<{ source: 'local' | 'perenual' | 'custom'; plant: UnifiedPlantResult | CustomPlant }>
-  >([]);
-  const [lookupLoading, setLookupLoading] = useState(false);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-  const [saveAsCustom, setSaveAsCustom] = useState(true);
-  const [lastPickedTrefleId, setLastPickedTrefleId] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [variety, setVariety] = useState("");
+  const [category, setCategory] = useState<PlantCategory>("vegetable");
+  const [growingMethod, setGrowingMethod] = useState<GrowingMethod>("soil");
+  const [systemType, setSystemType] = useState("");
+  const [location, setLocation] = useState("");
+  const [plantedDate, setPlantedDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState("");
 
-  const runLookup = async () => {
-    const q = lookupQuery.trim();
-    if (!q) return;
-    setLookupLoading(true);
-    setLookupError(null);
-    try {
-      // Search locally-saved custom plants first so offline-entered plants surface.
-      const customMatches = await db.customPlants
-        .filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
-        .toArray();
-      let apiMatches: UnifiedPlantResult[] = [];
-      try {
-        apiMatches = await searchPlants(q);
-      } catch (err) {
-        // Don't fail the whole lookup — still show custom matches.
-        setLookupError('Plant database unreachable. Showing local results only.');
-      }
-      setLookupResults([
-        ...customMatches.map((p) => ({ source: 'custom' as const, plant: p })),
-        ...apiMatches.map((p) => ({ source: p.source as 'local' | 'perenual', plant: p })),
-      ]);
-    } finally {
-      setLookupLoading(false);
-    }
-  };
-
-  const applyApiPlant = async (plant: UnifiedPlantResult) => {
-    setName(plant.name);
-    setLastPickedTrefleId(plant.source === 'perenual' ? Number(plant.id.replace('perenual-', '')) : null);
-    try {
-      const detail = await getPlantDetail(plant);
-      const bits: string[] = [];
-      if (plant.scientificName) bits.push(`Scientific name: ${plant.scientificName}`);
-      if (plant.family) bits.push(`Family: ${plant.family}`);
-      if (detail.minTempC !== undefined) bits.push(`Min temp: ${detail.minTempC}°C`);
-      if (detail.maxTempC !== undefined) bits.push(`Max temp: ${detail.maxTempC}°C`);
-      if (detail.minPh !== undefined) bits.push(`pH ${detail.minPh}–${detail.maxPh ?? '?'}`);
-      if (detail.waterNeeds) bits.push(`Water needs: ${detail.waterNeeds}`);
-      if (detail.daysToMaturity) bits.push(`Days to maturity: ${detail.daysToMaturity[0]}–${detail.daysToMaturity[1]}`);
-      if (detail.harvestWindow) bits.push(`Harvest: ${detail.harvestWindow}`);
-      if (detail.culinaryUses?.length) bits.push(`Culinary: ${detail.culinaryUses.join(', ')}`);
-      if (bits.length > 0) setNotes(bits.join('\n'));
-    } catch {
-      /* ignore — notes stay as-is */
-    }
-  };
-
-  const applyCustomPlant = (cp: CustomPlant) => {
-    setName(cp.name);
-    if (cp.variety) setVariety(cp.variety);
-    if (cp.category) setCategory(cp.category);
-    if (cp.notes) setNotes(cp.notes);
-    if (cp.trefleId) setLastPickedTrefleId(cp.trefleId);
-  };
-
-  const addTag = () => {
-    const trimmed = tagInput.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags([...tags, trimmed]);
-      setTagInput('');
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
 
     setSaving(true);
-
-    const statusInfo = healthStatuses.find((s) => s.value === healthStatus);
-    const healthTags: HealthTag[] = statusInfo
-      ? [{ category: statusInfo.category, value: statusInfo.value, severity: 'low', addedAt: new Date() }]
-      : [];
-
-    const id = await addPlant({
-      name: name.trim(),
-      variety: variety.trim() || undefined,
-      category,
-      growingMethod,
-      systemType: growingMethod !== 'soil' ? systemType : undefined,
-      location: location.trim() || undefined,
-      plantedDate: new Date(plantedDate),
-      healthTags,
-      tags,
-      notes: notes.trim() || undefined,
-      trefleId: lastPickedTrefleId ?? undefined,
-    });
-
-    // Optionally persist as a reusable custom-plant template.
-    if (saveAsCustom) {
-      try {
-        const exists = await db.customPlants
-          .filter((p) => p.name.toLowerCase() === name.trim().toLowerCase())
-          .first();
-        if (!exists) {
-          await db.customPlants.add({
-            name: name.trim(),
-            variety: variety.trim() || undefined,
-            category,
-            notes: notes.trim() || undefined,
-            trefleId: lastPickedTrefleId ?? undefined,
-            source: lastPickedTrefleId ? 'trefle' : 'user',
-            createdAt: new Date(),
-          });
-        }
-      } catch {
-        /* non-fatal */
-      }
+    try {
+      await addPlant({
+        name: name.trim(),
+        variety: variety.trim() || undefined,
+        category,
+        growingMethod,
+        systemType: systemType.trim() || undefined,
+        location: location.trim() || undefined,
+        plantedDate: new Date(plantedDate),
+        notes: notes.trim() || undefined,
+        tags: tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        healthTags: [],
+        updatedAt: new Date(),
+      });
+      router.push("/plants");
+    } catch (err) {
+      setSaving(false);
+      // eslint-disable-next-line no-console
+      console.error("Failed to add plant:", err);
     }
-
-    router.push(`/plants/${id}`);
-  };
+  }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Link href="/plants" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
-        <ArrowLeft className="h-4 w-4" />
-        Back to plants
-      </Link>
+    <main className="mx-auto max-w-2xl px-4 py-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mb-4 -ml-2"
+        onClick={() => router.push("/plants")}
+      >
+        <ArrowLeft className="size-4" />
+        Back to Plants
+      </Button>
 
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          {/* Lookup */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                Plant Lookup
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Search our local plant database (55+ Thai plants, works offline) or Perenual API to auto-fill fields.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="e.g. Thai Basil"
-                    value={lookupQuery}
-                    onChange={(e) => setLookupQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        runLookup();
-                      }
-                    }}
-                    className="pl-9"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={runLookup}
-                  disabled={lookupLoading || !lookupQuery.trim()}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sprout className="size-5 text-primary" />
+            Add a New Plant
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                placeholder="e.g. Thai Basil"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Variety */}
+            <div className="space-y-1.5">
+              <Label htmlFor="variety">Variety</Label>
+              <Input
+                id="variety"
+                placeholder="e.g. Holy Basil (Kaphrao)"
+                value={variety}
+                onChange={(e) => setVariety(e.target.value)}
+              />
+            </div>
+
+            {/* Category & Growing Method */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="category">Category</Label>
+                <select
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as PlantCategory)}
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
-                  {lookupLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Search'
-                  )}
-                </Button>
-              </div>
-              {lookupError && (
-                <p className="text-xs text-amber-600">{lookupError}</p>
-              )}
-              {lookupResults.length > 0 && (
-                <div className="max-h-64 overflow-y-auto space-y-1 border rounded-md p-1">
-                  {lookupResults.map((res, i) => {
-                    const key = `${res.source}-${i}`;
-                    if (res.source === 'custom') {
-                      const cp = res.plant as CustomPlant;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => applyCustomPlant(cp)}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left"
-                        >
-                          <Badge variant="secondary" className="text-[10px]">Saved</Badge>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{cp.name}</p>
-                            {cp.scientificName && (
-                              <p className="text-[10px] text-muted-foreground italic truncate">
-                                {cp.scientificName}
-                              </p>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    }
-                    const up = res.plant as UnifiedPlantResult;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => applyApiPlant(up)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left"
-                      >
-                        <Badge variant="outline" className="text-[10px]">
-                          {up.source === 'local' ? 'Local DB' : 'Perenual'}
-                        </Badge>
-                        {up.imageUrl && (
-                          <img src={up.imageUrl} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{up.name}</p>
-                          <p className="text-[10px] text-muted-foreground italic truncate">
-                            {up.scientificName}
-                          </p>
-                        </div>
-                        {lastPickedTrefleId && String(lastPickedTrefleId) === up.id && (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={saveAsCustom}
-                  onChange={(e) => setSaveAsCustom(e.target.checked)}
-                  className="rounded"
-                />
-                Save this plant to my custom plants for next time
-              </label>
-            </CardContent>
-          </Card>
-
-          {/* Basic Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Plant Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Plant Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g. Thai Basil"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="variety">Variety</Label>
-                  <Input
-                    id="variety"
-                    placeholder="e.g. Sweet Basil"
-                    value={variety}
-                    onChange={(e) => setVariety(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {categories.map((cat) => (
-                    <Button
-                      key={cat.value}
-                      type="button"
-                      variant={category === cat.value ? 'default' : 'outline'}
-                      className={category === cat.value ? 'bg-green-600 hover:bg-green-700' : ''}
-                      onClick={() => setCategory(cat.value)}
-                      size="sm"
-                    >
-                      {cat.label}
-                    </Button>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="planted">Date Planted</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="growingMethod">Growing Method</Label>
+                <select
+                  id="growingMethod"
+                  value={growingMethod}
+                  onChange={(e) => setGrowingMethod(e.target.value as GrowingMethod)}
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  {GROWING_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* System Type & Location */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="systemType">System Type</Label>
                 <Input
-                  id="planted"
-                  type="date"
-                  value={plantedDate}
-                  onChange={(e) => setPlantedDate(e.target.value)}
+                  id="systemType"
+                  placeholder="e.g. NFT, DWC, Kratky"
+                  value={systemType}
+                  onChange={(e) => setSystemType(e.target.value)}
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="location">Location</Label>
                 <Input
                   id="location"
-                  placeholder="e.g. Backyard raised bed, Greenhouse rack 2"
+                  placeholder="e.g. Backyard bed A"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Growing Method */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Growing Method</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup value={growingMethod} onValueChange={(v) => setGrowingMethod(v as GrowingMethod)}>
-                {growingMethods.map((method) => (
-                  <div key={method.value} className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted cursor-pointer">
-                    <RadioGroupItem value={method.value} id={method.value} />
-                    <Label htmlFor={method.value} className="cursor-pointer flex-1">
-                      <span className="font-medium">{method.label}</span>
-                      <span className="text-sm text-muted-foreground ml-2">{method.description}</span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
+            {/* Planted Date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="plantedDate">Planted Date</Label>
+              <Input
+                id="plantedDate"
+                type="date"
+                value={plantedDate}
+                onChange={(e) => setPlantedDate(e.target.value)}
+                required
+              />
+            </div>
 
-              {growingMethod !== 'soil' && (
-                <div className="space-y-2">
-                  <Label>System Type</Label>
-                  <Select value={systemType} onValueChange={(v) => v && setSystemType(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select system type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {systemTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Health Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2">
-                {healthStatuses.map((status) => (
-                  <Button
-                    key={status.value}
-                    type="button"
-                    variant={healthStatus === status.value ? 'default' : 'outline'}
-                    className={healthStatus === status.value ? 'bg-green-600 hover:bg-green-700' : ''}
-                    onClick={() => setHealthStatus(status.value)}
-                    size="sm"
-                  >
-                    {status.label}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tags */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tags</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a tag..."
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                />
-                <Button type="button" variant="outline" onClick={addTag}>Add</Button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                      {tag}
-                      <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-destructive">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label htmlFor="notes">Notes</Label>
               <Textarea
-                placeholder="Any additional notes about this plant..."
+                id="notes"
+                placeholder="Any observations, soil mix, seed source..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={3}
               />
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Submit */}
-          <div className="flex gap-3">
-            <Button
-              type="submit"
-              className="bg-green-600 hover:bg-green-700 flex-1"
-              disabled={!name.trim() || saving}
-            >
-              {saving ? 'Saving...' : 'Add Plant'}
-            </Button>
-            <Link href="/plants">
-              <Button type="button" variant="outline">Cancel</Button>
-            </Link>
-          </div>
-        </div>
-      </form>
-    </div>
+            {/* Tags */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tags">Tags</Label>
+              <Input
+                id="tags"
+                placeholder="e.g. organic, heirloom, indoor"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Separate tags with commas.</p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/plants")}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving || !name.trim()}>
+                {saving ? "Saving..." : "Add Plant"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

@@ -1,42 +1,61 @@
-'use client';
-
-import { useState, useEffect, useCallback } from 'react';
-import { fetchWeather } from '@/lib/api/weather';
-import type { WeatherData } from '@/types/weather';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/store/app-store';
+import { fetchWeather } from '@/lib/api/weather';
+import type { WeatherData } from '@/types';
 
-export function useWeather() {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export interface UseWeatherReturn {
+  weather: WeatherData | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+}
+
+let weatherCache: { data: WeatherData; timestamp: number } | null = null;
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+export function useWeather(): UseWeatherReturn {
   const location = useAppStore((s) => s.location);
+  const [weather, setWeather] = useState<WeatherData | null>(
+    weatherCache?.data ?? null
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
-    // Hard 15s timeout so the page never sits on skeletons forever when
-    // the weather API is offline or blocked.
-    const timeoutId = setTimeout(() => {
-      setError('Weather request timed out after 15 seconds');
-      setLoading(false);
-    }, 15000);
+
     try {
-      const data = await fetchWeather({
-        latitude: location.latitude,
-        longitude: location.longitude,
-      });
-      clearTimeout(timeoutId);
+      if (weatherCache && Date.now() - weatherCache.timestamp < CACHE_TTL) {
+        setWeather(weatherCache.data);
+        setLoading(false);
+        return;
+      }
+
+      const data = await fetchWeather(
+        location.latitude,
+        location.longitude,
+        controller.signal
+      );
+      weatherCache = { data, timestamp: Date.now() };
       setWeather(data);
-      setLoading(false);
     } catch (err) {
-      clearTimeout(timeoutId);
-      setError(err instanceof Error ? err.message : 'Failed to fetch weather');
+      if ((err as Error).name !== 'AbortError') {
+        setError((err as Error).message);
+      }
+    } finally {
       setLoading(false);
     }
   }, [location.latitude, location.longitude]);
 
   useEffect(() => {
     refresh();
+    return () => abortRef.current?.abort();
   }, [refresh]);
 
   return { weather, loading, error, refresh };

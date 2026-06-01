@@ -1,49 +1,58 @@
-'use client';
-
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/db';
-import type { HydroSystem } from '@/types/system';
-import { normaliseComponent } from '@/types/system';
+import type { HydroSystem } from '@/types';
 
-export function useSystems() {
+export interface UseSystemsReturn {
+  systems: HydroSystem[];
+  loading: boolean;
+  addSystem: (
+    system: Omit<HydroSystem, 'id' | 'createdAt'>
+  ) => Promise<void>;
+  updateSystem: (id: string, updates: Partial<HydroSystem>) => Promise<void>;
+  deleteSystem: (id: string) => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+export function useSystems(): UseSystemsReturn {
   const [systems, setSystems] = useState<HydroSystem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const allSystems = await db.systems.orderBy('createdAt').reverse().toArray();
-    // Normalise legacy systems where connections were stored as string[].
-    const normalised = allSystems.map((sys) => ({
-      ...sys,
-      components: (sys.components ?? []).map(normaliseComponent),
-    }));
-    setSystems(normalised);
+    const data = await db.systems.toArray();
+    setSystems(data);
     setLoading(false);
   }, []);
 
+  const addSystem = useCallback(
+    async (system: Omit<HydroSystem, 'id' | 'createdAt'>) => {
+      await db.systems.add({
+        ...system,
+        createdAt: new Date(),
+      } as HydroSystem);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const updateSystem = useCallback(
+    async (id: string, updates: Partial<HydroSystem>) => {
+      await db.systems.update(id, updates);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const deleteSystem = useCallback(
+    async (id: string) => {
+      await db.systems.delete(id);
+      await refresh();
+    },
+    [refresh]
+  );
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
-
-  const addSystem = useCallback(async (system: Omit<HydroSystem, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date();
-    const id = await db.systems.add({
-      ...system,
-      createdAt: now,
-      updatedAt: now,
-    } as HydroSystem);
-    await refresh();
-    return id;
-  }, [refresh]);
-
-  const updateSystem = useCallback(async (id: number, updates: Partial<HydroSystem>) => {
-    await db.systems.update(id, { ...updates, updatedAt: new Date() });
-    await refresh();
-  }, [refresh]);
-
-  const deleteSystem = useCallback(async (id: number) => {
-    await db.systems.delete(id);
-    await refresh();
   }, [refresh]);
 
   return { systems, loading, addSystem, updateSystem, deleteSystem, refresh };

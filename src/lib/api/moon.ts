@@ -1,95 +1,78 @@
-import type { MoonPhase } from '@/types/calendar';
+export interface MoonPhaseResult {
+  phase: number; // 0-7
+  illumination: number; // 0-100
+  plantingAdvice: string;
+}
 
-/**
- * Calculate moon phase using a simplified astronomical algorithm.
- * Based on the synodic month (29.53059 days).
- */
-export function getMoonPhase(date: Date): MoonPhase {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
+// Simple astronomical approximation using known new moon epoch
+// Known new moon: 2000-01-06 18:14 UTC (Julian date 2451549.5 approx)
+const LUNAR_CYCLE = 29.53058867; // days
+const KNOWN_NEW_MOON_JD = 2451549.5; // Jan 6, 2000 approx new moon
 
-  // Calculate days since known new moon (Jan 6, 2000)
-  const referenceNewMoon = new Date(2000, 0, 6, 18, 14).getTime();
-  const current = date.getTime();
-  const daysSinceNewMoon = (current - referenceNewMoon) / (1000 * 60 * 60 * 24);
+function getJulianDate(date: Date): number {
+  return date.getTime() / 86400000 + 2440587.5;
+}
 
-  const synodicMonth = 29.53059;
-  const moonAge = ((daysSinceNewMoon % synodicMonth) + synodicMonth) % synodicMonth;
-  const illumination = Math.round((1 - Math.cos((moonAge / synodicMonth) * 2 * Math.PI)) / 2 * 100);
+function calculateMoonAge(date: Date): number {
+  const jd = getJulianDate(date);
+  const daysSinceKnown = jd - KNOWN_NEW_MOON_JD;
+  const moonAge = ((daysSinceKnown % LUNAR_CYCLE) + LUNAR_CYCLE) % LUNAR_CYCLE;
+  return moonAge;
+}
 
-  let phase: MoonPhase['phase'];
-  let plantingAdvice: string;
+export function getMoonPhase(date: Date = new Date()): MoonPhaseResult {
+  const moonAge = calculateMoonAge(date);
+  const phase = Math.round((moonAge / LUNAR_CYCLE) * 8) % 8;
+  const illumination = Math.round((1 - Math.cos((moonAge / LUNAR_CYCLE) * 2 * Math.PI)) / 2 * 100);
 
-  if (moonAge < 1.85) {
-    phase = 'new';
-    plantingAdvice = 'Good for planting leafy annuals, herbs. Gravitational pull draws water up.';
-  } else if (moonAge < 7.38) {
-    phase = 'waxing_crescent';
-    plantingAdvice = 'Good for planting leafy annuals with seeds outside the fruit (e.g., lettuce, spinach).';
-  } else if (moonAge < 9.23) {
-    phase = 'first_quarter';
-    plantingAdvice = 'Good for planting annuals with seeds inside the fruit (e.g., tomatoes, peppers).';
-  } else if (moonAge < 14.77) {
-    phase = 'waxing_gibbous';
-    plantingAdvice = 'Good for planting annuals with seeds inside the fruit. Strong leaf growth period.';
-  } else if (moonAge < 16.61) {
-    phase = 'full';
-    plantingAdvice = 'Best for planting root crops, bulbs, and perennials. Moonlight promotes leaf growth.';
-  } else if (moonAge < 22.15) {
-    phase = 'waning_gibbous';
-    plantingAdvice = 'Good for planting root crops, bulbs, biennials, and perennials.';
-  } else if (moonAge < 23.99) {
-    phase = 'third_quarter';
-    plantingAdvice = 'Rest period. Good for harvesting, pruning, transplanting, and maintenance.';
-  } else {
-    phase = 'waning_crescent';
-    plantingAdvice = 'Rest period. Avoid planting. Good for soil preparation and composting.';
-  }
+  const adviceMap: Record<number, string> = {
+    0: "New Moon — Rest the soil. Good time for pruning, weeding, and soil preparation.",
+    1: "Waxing Crescent — Plant leafy greens and annuals that produce above ground.",
+    2: "First Quarter — Strong growth energy. Plant crops with above-ground fruit (tomatoes, peppers, beans).",
+    3: "Waxing Gibbous — Continue planting above-ground crops. Good for grafting and pruning to encourage growth.",
+    4: "Full Moon — Peak energy. Harvest for maximum flavor and storage life. Avoid planting today.",
+    5: "Waning Gibbous — Plant root crops (carrots, radish, sweet potato) and perennials.",
+    6: "Last Quarter — Ideal for root crops, bulbs, and transplanting. Good for pruning to retard growth.",
+    7: "Waning Crescent — Rest period. Focus on composting, mulching, and soil improvement.",
+  };
 
   return {
-    date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
     phase,
     illumination,
-    plantingAdvice,
+    plantingAdvice: adviceMap[phase],
   };
 }
 
-export function getMoonPhaseEmoji(phase: MoonPhase['phase']): string {
-  const emojis: Record<MoonPhase['phase'], string> = {
-    new: '🌑',
-    waxing_crescent: '🌒',
-    first_quarter: '🌓',
-    waxing_gibbous: '🌔',
-    full: '🌕',
-    waning_gibbous: '🌖',
-    third_quarter: '🌗',
-    waning_crescent: '🌘',
-  };
-  return emojis[phase];
+export function getMoonPhaseEmoji(phase: number): string {
+  const emojis = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+  return emojis[phase] ?? "🌑";
 }
 
-export function getMoonPhaseName(phase: MoonPhase['phase']): string {
-  const names: Record<MoonPhase['phase'], string> = {
-    new: 'New Moon',
-    waxing_crescent: 'Waxing Crescent',
-    first_quarter: 'First Quarter',
-    waxing_gibbous: 'Waxing Gibbous',
-    full: 'Full Moon',
-    waning_gibbous: 'Waning Gibbous',
-    third_quarter: 'Third Quarter',
-    waning_crescent: 'Waning Crescent',
-  };
-  return names[phase];
+export function getMoonPhaseName(phase: number): string {
+  const names = [
+    "New Moon",
+    "Waxing Crescent",
+    "First Quarter",
+    "Waxing Gibbous",
+    "Full Moon",
+    "Waning Gibbous",
+    "Last Quarter",
+    "Waning Crescent",
+  ];
+  return names[phase] ?? "Unknown";
 }
 
-export function getMonthMoonPhases(year: number, month: number): MoonPhase[] {
-  const phases: MoonPhase[] = [];
-  const daysInMonth = new Date(year, month, 0).getDate();
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    phases.push(getMoonPhase(new Date(year, month - 1, day)));
-  }
-
-  return phases;
+export function moonSuggestion(date: Date = new Date()): string {
+  const { phase } = getMoonPhase(date);
+  const suggestions: Record<number, string> = {
+    0: "Today is best for soil prep, weeding, and pruning. Give your garden a rest from planting.",
+    1: "Plant leafy greens: lettuce, kale, bok choy, spinach, and herbs like basil and coriander.",
+    2: "Plant fruiting crops: tomato, chili, eggplant, cucumber, long bean, and okra.",
+    3: "Continue with fruiting crops, grafting, and transplanting seedlings.",
+    4: "Harvest crops for best flavor and storage. Dry herbs and seeds today.",
+    5: "Plant root crops: carrot, radish, sweet potato, cassava, galangal, turmeric, and fingerroot.",
+    6: "Plant bulbs, tubers, and root vegetables. Good for dividing perennials like lemongrass and mint.",
+    7: "Work on compost, mulch beds, and improve soil structure. Plan your next planting cycle.",
+  };
+  return suggestions[phase];
 }

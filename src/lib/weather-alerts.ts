@@ -1,148 +1,98 @@
-import type { WeatherData } from '@/types/weather';
+import type { WeatherData } from "@/types";
 
 export interface WeatherAlert {
-  id: string;
-  type: 'storm' | 'heat' | 'frost' | 'wind' | 'drought' | 'flood' | 'uv' | 'humidity';
-  severity: 'info' | 'warning' | 'critical';
+  type: "storm" | "heat" | "uv" | "wind" | "fungal" | "drought";
+  severity: "low" | "medium" | "high";
   title: string;
-  description: string;
-  action: string;
-  affectedPlants?: string[];
+  message: string;
 }
 
-/**
- * Generate actionable weather alerts for gardeners based on forecast data.
- */
-export function generateWeatherAlerts(weather: WeatherData | null): WeatherAlert[] {
-  if (!weather) return [];
-
+export function generateWeatherAlerts(weather: WeatherData): WeatherAlert[] {
   const alerts: WeatherAlert[] = [];
-  const current = weather.current;
-  const daily = weather.daily;
+  const { current, daily } = weather;
 
-  // Storm alert — heavy rain or thunderstorm in forecast
-  const maxRainNext3Days = Math.max(
-    ...daily.precipitationSum.slice(0, 3)
-  );
-  if (maxRainNext3Days > 50) {
+  // Storm alert: thunderstorm codes (95-99) or very high precipitation probability
+  const hasStormCode = daily.weatherCode.some((c) => c >= 95 && c <= 99);
+  const highPrecipProb = daily.precipitationProbabilityMax.some((p) => p >= 80);
+  if (hasStormCode || highPrecipProb) {
     alerts.push({
-      id: 'storm-heavy-rain',
-      type: 'storm',
-      severity: 'critical',
-      title: 'Heavy Rain Incoming',
-      description: `Up to ${maxRainNext3Days.toFixed(0)}mm of rain expected in the next 3 days. Risk of root rot and nutrient leaching.`,
-      action: 'Move potted plants under cover. Ensure drainage is clear. Pause fertilizing.',
-      affectedPlants: ['Lettuce', 'Tomato', 'Herbs', 'Strawberry'],
-    });
-  } else if (maxRainNext3Days > 20) {
-    alerts.push({
-      id: 'storm-moderate-rain',
-      type: 'storm',
-      severity: 'warning',
-      title: 'Moderate Rain Expected',
-      description: `Up to ${maxRainNext3Days.toFixed(0)}mm of rain in the next 3 days.`,
-      action: 'Check drainage. Cover sensitive seedlings. Harvest ripe produce before rain.',
+      type: "storm",
+      severity: hasStormCode ? "high" : "medium",
+      title: "Storm Warning",
+      message: hasStormCode
+        ? "Thunderstorms forecasted. Secure young plants, trellises, and covers. Avoid working in the garden during lightning."
+        : "Heavy rain likely. Check drainage and avoid overwatering. Protect sensitive seedlings.",
     });
   }
 
-  // Heat alert
-  const maxTempNext3Days = Math.max(
-    ...daily.temperatureMax.slice(0, 3)
-  );
-  if (maxTempNext3Days > 38) {
+  // Heat alert: daily max temps >= 35°C
+  const maxTemp = Math.max(...daily.temperatureMax);
+  if (maxTemp >= 35) {
     alerts.push({
-      id: 'heat-extreme',
-      type: 'heat',
-      severity: 'critical',
-      title: 'Extreme Heat Warning',
-      description: `Temperatures reaching ${Math.round(maxTempNext3Days)}°C. Plants may wilt or bolt.`,
-      action: 'Water deeply early morning. Set up shade cloth for sensitive crops. Avoid transplanting.',
-      affectedPlants: ['Lettuce', 'Cilantro', 'Spinach', 'Seedlings'],
-    });
-  } else if (maxTempNext3Days > 35) {
-    alerts.push({
-      id: 'heat-high',
-      type: 'heat',
-      severity: 'warning',
-      title: 'High Heat Alert',
-      description: `Temperatures up to ${Math.round(maxTempNext3Days)}°C expected.`,
-      action: 'Increase watering frequency. Mulch soil surface to retain moisture.',
+      type: "heat",
+      severity: maxTemp >= 38 ? "high" : "medium",
+      title: "Extreme Heat",
+      message: `Peak temperature reaching ${Math.round(maxTemp)}°C. Provide shade cloth for tender crops, water early morning or evening, and watch for wilting in lettuce, coriander, and bok choy.`,
     });
   }
 
-  // Frost alert (unlikely in Thailand but included for completeness)
-  const minTempNext3Days = Math.min(
-    ...daily.temperatureMin.slice(0, 3)
-  );
-  if (minTempNext3Days < 10) {
+  // Frost/cold alert: daily min temps <= 5°C (relevant for Thai highlands)
+  const minTemp = Math.min(...daily.temperatureMin);
+  if (minTemp <= 5) {
     alerts.push({
-      id: 'frost-risk',
-      type: 'frost',
-      severity: 'critical',
-      title: 'Frost Risk',
-      description: `Lows dropping to ${Math.round(minTempNext3Days)}°C. Tender plants at risk.`,
-      action: 'Cover tender plants with cloth overnight. Move containers indoors if possible.',
-    });
-  }
-
-  // Wind alert
-  const maxWindNext3Days = Math.max(
-    ...daily.windSpeedMax.slice(0, 3)
-  );
-  if (maxWindNext3Days > 40) {
-    alerts.push({
-      id: 'wind-strong',
-      type: 'wind',
-      severity: 'warning',
-      title: 'Strong Winds Expected',
-      description: `Winds up to ${Math.round(maxWindNext3Days)} km/h. Risk of plant damage.`,
-      action: 'Stake tall plants. Secure trellises. Move lightweight containers to shelter.',
+      type: "heat",
+      severity: "high",
+      title: "Frost Risk",
+      message: `Lows dropping to ${Math.round(minTemp)}°C. Cover sensitive plants or move containers indoors. Basil and papaya are especially vulnerable.`,
     });
   }
 
   // UV alert
-  const maxUvNext3Days = Math.max(
-    ...daily.uvIndexMax.slice(0, 3)
-  );
-  if (maxUvNext3Days > 10) {
+  const maxUv = Math.max(...daily.uvIndexMax);
+  if (maxUv >= 8) {
     alerts.push({
-      id: 'uv-extreme',
-      type: 'uv',
-      severity: 'warning',
-      title: 'Extreme UV Index',
-      description: `UV index reaching ${Math.round(maxUvNext3Days)}. Intense sun can scorch leaves.`,
-      action: 'Deploy shade cloth (30-50%) over sensitive crops. Water early to prevent heat stress.',
+      type: "uv",
+      severity: maxUv >= 11 ? "high" : "medium",
+      title: "High UV Index",
+      message: `UV index reaching ${Math.round(maxUv)}. Use shade cloth for seedlings and sensitive leafy greens. Water in the morning to reduce transpiration stress.`,
     });
   }
 
-  // Humidity / fungal risk
-  if (current.humidity > 85) {
+  // Wind alert
+  const maxWind = Math.max(...daily.windSpeedMax);
+  if (maxWind >= 30) {
     alerts.push({
-      id: 'humidity-high',
-      type: 'humidity',
-      severity: 'warning',
-      title: 'High Humidity — Fungal Risk',
-      description: `Current humidity is ${current.humidity}%. Ideal conditions for fungal diseases.`,
-      action: 'Improve air circulation. Avoid overhead watering. Apply fungicide preventively if needed.',
-      affectedPlants: ['Tomato', 'Cucumber', 'Squash', 'Basil'],
+      type: "wind",
+      severity: maxWind >= 50 ? "high" : "medium",
+      title: "Strong Winds",
+      message: `Gusts up to ${Math.round(maxWind)} km/h expected. Stake tall plants like tomato, eggplant, and papaya. Secure trellises and covers. Delay spraying.`,
     });
   }
 
-  // Drought alert — no rain forecast for 7+ days
-  const rainNext7Days = daily.precipitationSum.slice(0, 7).reduce((a, b) => a + b, 0);
-  if (rainNext7Days < 5 && current.temperature > 30) {
+  // Humidity / fungal alert
+  const avgHumidity =
+    weather.hourly.humidity.reduce((a, b) => a + b, 0) /
+    (weather.hourly.humidity.length || 1);
+  if (avgHumidity >= 85) {
     alerts.push({
-      id: 'drought-risk',
-      type: 'drought',
-      severity: 'warning',
-      title: 'Dry Spell Ahead',
-      description: `Less than 5mm of rain forecast over the next 7 days with temps above 30°C.`,
-      action: 'Deep water in early morning. Apply mulch to reduce evaporation. Prioritize fruiting plants.',
+      type: "fungal",
+      severity: "medium",
+      title: "High Humidity — Fungal Risk",
+      message: "Prolonged high humidity increases risk of powdery mildew and downy mildew. Ensure good airflow, avoid wetting foliage, and inspect cucumber, bok choy, and basil for early signs.",
     });
   }
 
-  return alerts.sort((a, b) => {
-    const severityOrder = { critical: 0, warning: 1, info: 2 };
-    return severityOrder[a.severity] - severityOrder[b.severity];
-  });
+  // Drought alert: no rain forecast + high ET0 + low current humidity
+  const totalPrecip = daily.precipitationSum.reduce((a, b) => a + b, 0);
+  const avgEt0 = daily.et0.reduce((a, b) => a + b, 0) / (daily.et0.length || 1);
+  if (totalPrecip < 5 && avgEt0 > 4 && current.humidity < 50) {
+    alerts.push({
+      type: "drought",
+      severity: "medium",
+      title: "Dry Conditions",
+      message: "Little rain expected with high evapotranspiration. Increase watering frequency for container plants and shallow-rooted crops. Mulch to conserve soil moisture.",
+    });
+  }
+
+  return alerts;
 }

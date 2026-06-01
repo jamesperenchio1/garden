@@ -1,289 +1,280 @@
 import { create } from 'zustand';
-import type {
-  Connection,
-  ComponentType,
-  SystemComponent,
-  Vec3,
-} from '@/types/system';
-import { normaliseComponent } from '@/types/system';
-import type { FlowIssue } from '@/types/system';
+import { devtools } from 'zustand/middleware';
 
 export type DesignerTheme = 'light' | 'dark';
 
-const THEME_KEY = 'designer.theme';
-
-function loadTheme(): DesignerTheme {
-  if (typeof window === 'undefined') return 'light';
-  const stored = window.localStorage.getItem(THEME_KEY);
-  if (stored === 'dark' || stored === 'light') return stored;
-  // First visit — persist the default so external observers can read it.
-  window.localStorage.setItem(THEME_KEY, 'light');
-  return 'light';
+export interface DesignerComponent {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  height: number;
+  depth: number;
+  connections: string[];
+  [key: string]: unknown;
 }
 
-const GRID_UNIT = 0.5;
-
-/** Nudge a placement position on the X axis until it doesn't overlap an existing component. */
-function resolveCollision(
-  position: Vec3,
-  existing: SystemComponent[]
-): Vec3 {
-  const taken = (p: Vec3) =>
-    existing.some(
-      (c) =>
-        Math.abs(c.position.x - p.x) < 1e-3 &&
-        Math.abs(c.position.y - p.y) < 1e-3 &&
-        Math.abs(c.position.z - p.z) < 1e-3
-    );
-  let pos = { ...position };
-  let guard = 0;
-  while (taken(pos) && guard < 200) {
-    pos = { ...pos, x: pos.x + GRID_UNIT };
-    guard += 1;
-  }
-  return pos;
+export interface FlowIssue {
+  id: string;
+  message: string;
+  severity: 'error' | 'warning';
+  componentId?: string;
 }
 
-interface ConnectMode {
-  active: boolean;
-  fromId: string | null;
-  waypoints: Vec3[];
-}
-
-interface DesignerState {
-  components: SystemComponent[];
-  selectedComponentId: string | null;
+export interface DesignerState {
+  components: DesignerComponent[];
+  selectedId: string | null;
   theme: DesignerTheme;
-  connectMode: ConnectMode;
-
-  addComponent: (type: ComponentType, position: Vec3) => void;
-  removeComponent: (id: string) => void;
-  selectComponent: (id: string | null) => void;
-  updateComponent: (id: string, updates: Partial<SystemComponent>) => void;
-
-  /** Finalise a connection, optionally with intermediate waypoints. */
-  addConnection: (fromId: string, toId: string, waypoints?: Vec3[]) => void;
-  /** Remove an outgoing connection from fromId → toId. */
-  removeConnection: (fromId: string, toId: string) => void;
-  /** Update the lengthOverride / waypoints of an existing connection. */
-  updateConnection: (
-    fromId: string,
-    toId: string,
-    updates: Partial<Connection>
-  ) => void;
-
-  clearAll: () => void;
-  loadComponents: (components: SystemComponent[]) => void;
-  validateDesign: () => FlowIssue[];
-
-  setTheme: (theme: DesignerTheme) => void;
-
-  startConnectMode: (fromId: string) => void;
-  addConnectWaypoint: (point: Vec3) => void;
-  cancelConnectMode: () => void;
-  finishConnectMode: (toId: string) => void;
+  history: DesignerComponent[][];
+  historyIndex: number;
 }
 
-let nextId = 1;
+export interface DesignerActions {
+  addComponent: (
+    component: Omit<DesignerComponent, 'id' | 'connections'>
+  ) => void;
+  removeComponent: (id: string) => void;
+  updateComponent: (id: string, updates: Partial<DesignerComponent>) => void;
+  selectComponent: (id: string | null) => void;
+  addConnection: (fromId: string, toId: string) => void;
+  removeConnection: (fromId: string, toId: string) => void;
+  validateDesign: () => FlowIssue[];
+  undo: () => void;
+  redo: () => void;
+  setTheme: (theme: DesignerTheme) => void;
+}
 
-export const useDesignerStore = create<DesignerState>((set, get) => ({
-  components: [],
-  selectedComponentId: null,
-  theme: loadTheme(),
-  connectMode: { active: false, fromId: null, waypoints: [] },
+type DesignerStore = DesignerState & DesignerActions;
 
-  addComponent: (type, position) =>
-    set((state) => {
-      const resolved = resolveCollision(position, state.components);
-      return {
-        components: [
-          ...state.components,
-          {
-            id: `comp-${nextId++}`,
-            type,
-            position: resolved,
-            rotation: { x: 0, y: 0, z: 0 },
-            scale: { x: 1, y: 1, z: 1 },
-            connections: [],
-            properties: {},
-          },
-        ],
-      };
-    }),
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
-  removeComponent: (id) =>
-    set((state) => ({
-      components: state.components
-        .filter((c) => c.id !== id)
-        .map((c) => ({
-          ...c,
-          connections: c.connections.filter((conn) => conn.toId !== id),
-        })),
-      selectedComponentId:
-        state.selectedComponentId === id ? null : state.selectedComponentId,
-    })),
+function resolveCollisions(components: DesignerComponent[]): DesignerComponent[] {
+  const resolved = components.map((c) => ({ ...c }));
+  const minGap = 0.1;
 
-  selectComponent: (id) => set({ selectedComponentId: id }),
+  for (let i = 0; i < resolved.length; i++) {
+    for (let j = i + 1; j < resolved.length; j++) {
+      const a = resolved[i];
+      const b = resolved[j];
 
-  updateComponent: (id, updates) =>
-    set((state) => ({
-      components: state.components.map((c) =>
-        c.id === id ? { ...c, ...updates } : c
-      ),
-    })),
+      const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      const overlapZ = Math.min(a.z + a.depth, b.z + b.depth) - Math.max(a.z, b.z);
 
-  addConnection: (fromId, toId, waypoints = []) =>
-    set((state) => {
-      if (fromId === toId) return state;
-      return {
-        components: state.components.map((c) => {
-          if (c.id !== fromId) return c;
-          if (c.connections.some((conn) => conn.toId === toId)) return c;
+      if (overlapX > 0 && overlapY > 0 && overlapZ > 0) {
+        const minOverlap = Math.min(overlapX, overlapY, overlapZ);
+        if (minOverlap === overlapX) {
+          b.x = a.x + a.width + minGap;
+        } else if (minOverlap === overlapY) {
+          b.y = a.y + a.height + minGap;
+        } else {
+          b.z = a.z + a.depth + minGap;
+        }
+      }
+    }
+  }
+
+  return resolved;
+}
+
+function pushHistory(
+  history: DesignerComponent[][],
+  index: number,
+  components: DesignerComponent[]
+): { history: DesignerComponent[][]; historyIndex: number } {
+  const next = history.slice(0, index + 1);
+  next.push(JSON.parse(JSON.stringify(components)));
+  if (next.length > 50) {
+    next.shift();
+    return { history: next, historyIndex: next.length - 1 };
+  }
+  return { history: next, historyIndex: next.length - 1 };
+}
+
+export const useDesignerStore = create<DesignerStore>()(
+  devtools(
+    (set, get) => ({
+      components: [],
+      selectedId: null,
+      theme: 'light',
+      history: [],
+      historyIndex: -1,
+
+      addComponent: (component) =>
+        set((state) => {
+          const partial = component as Record<string, unknown>;
+          const newComponent = {
+            type: String(partial.type ?? ''),
+            x: Number(partial.x ?? 0),
+            y: Number(partial.y ?? 0),
+            z: Number(partial.z ?? 0),
+            width: Number(partial.width ?? 0),
+            height: Number(partial.height ?? 0),
+            depth: Number(partial.depth ?? 0),
+            ...partial,
+            id: generateId(),
+            connections: [] as string[],
+          } as DesignerComponent;
+          const updated = resolveCollisions([...state.components, newComponent]);
+          const { history, historyIndex } = pushHistory(
+            state.history,
+            state.historyIndex,
+            updated
+          );
           return {
-            ...c,
-            connections: [...c.connections, { toId, waypoints }],
+            components: updated,
+            selectedId: newComponent.id,
+            history,
+            historyIndex,
           };
         }),
-      };
-    }),
 
-  removeConnection: (fromId, toId) =>
-    set((state) => ({
-      components: state.components.map((c) =>
-        c.id === fromId
-          ? { ...c, connections: c.connections.filter((conn) => conn.toId !== toId) }
-          : c
-      ),
-    })),
-
-  updateConnection: (fromId, toId, updates) =>
-    set((state) => ({
-      components: state.components.map((c) =>
-        c.id === fromId
-          ? {
+      removeComponent: (id) =>
+        set((state) => {
+          const filtered = state.components
+            .filter((c) => c.id !== id)
+            .map((c) => ({
               ...c,
-              connections: c.connections.map((conn) =>
-                conn.toId === toId ? { ...conn, ...updates } : conn
-              ),
+              connections: c.connections.filter((connId) => connId !== id),
+            }));
+          const { history, historyIndex } = pushHistory(
+            state.history,
+            state.historyIndex,
+            filtered
+          );
+          return {
+            components: filtered,
+            selectedId: state.selectedId === id ? null : state.selectedId,
+            history,
+            historyIndex,
+          };
+        }),
+
+      updateComponent: (id, updates) =>
+        set((state) => {
+          const updated = state.components.map((c) =>
+            c.id === id ? { ...c, ...updates } : c
+          );
+          const resolved = resolveCollisions(updated);
+          const { history, historyIndex } = pushHistory(
+            state.history,
+            state.historyIndex,
+            resolved
+          );
+          return { components: resolved, history, historyIndex };
+        }),
+
+      selectComponent: (id) => set({ selectedId: id }),
+
+      addConnection: (fromId, toId) =>
+        set((state) => {
+          if (fromId === toId) return state;
+          const updated = state.components.map((c) => {
+            if (c.id === fromId && !c.connections.includes(toId)) {
+              return { ...c, connections: [...c.connections, toId] };
             }
-          : c
-      ),
-    })),
-
-  clearAll: () =>
-    set({
-      components: [],
-      selectedComponentId: null,
-      connectMode: { active: false, fromId: null, waypoints: [] },
-    }),
-
-  validateDesign: () => {
-    const { components } = get();
-    const issues: FlowIssue[] = [];
-    const byId = Object.fromEntries(components.map((c) => [c.id, c]));
-
-    for (const comp of components) {
-      // Pump must be below or at the same level as the reservoir it feeds from
-      if (comp.type === 'pump') {
-        const sourceConn = components.find((c) =>
-          c.connections.some((conn) => conn.toId === comp.id)
-        );
-        if (sourceConn && sourceConn.type === 'reservoir' && comp.position.y > sourceConn.position.y) {
-          issues.push({
-            type: 'pressure_drop',
-            componentId: comp.id,
-            severity: 'critical',
-            description: `Pump is above its source reservoir. Water cannot flow uphill without a submersible pump.`,
+            return c;
           });
-        }
-      }
+          const { history, historyIndex } = pushHistory(
+            state.history,
+            state.historyIndex,
+            updated
+          );
+          return { components: updated, history, historyIndex };
+        }),
 
-      // Reservoir must be above grow beds it feeds (for gravity systems)
-      if (comp.type === 'reservoir') {
-        for (const conn of comp.connections) {
-          const target = byId[conn.toId];
-          if (target && (target.type === 'grow_bed' || target.type === 'vertical_tower') && comp.position.y < target.position.y) {
+      removeConnection: (fromId, toId) =>
+        set((state) => {
+          const updated = state.components.map((c) => {
+            if (c.id === fromId) {
+              return {
+                ...c,
+                connections: c.connections.filter((connId) => connId !== toId),
+              };
+            }
+            return c;
+          });
+          const { history, historyIndex } = pushHistory(
+            state.history,
+            state.historyIndex,
+            updated
+          );
+          return { components: updated, history, historyIndex };
+        }),
+
+      validateDesign: () => {
+        const { components } = get();
+        const issues: FlowIssue[] = [];
+        const ids = new Set(components.map((c) => c.id));
+
+        components.forEach((c) => {
+          if (!c.type) {
             issues.push({
-              type: 'dead_spot',
-              componentId: comp.id,
-              severity: 'warning',
-              description: `Reservoir is below ${target.type}. Gravity feed requires reservoir to be higher.`,
+              id: generateId(),
+              message: `Component ${c.id} has no type`,
+              severity: 'error',
+              componentId: c.id,
             });
           }
-        }
-      }
-
-      // Fish tank must have an air stone
-      if (comp.type === 'fish_tank') {
-        const hasAirStone = components.some(
-          (c) => c.type === 'air_stone' && comp.connections.some((conn) => conn.toId === c.id)
-        );
-        if (!hasAirStone) {
-          issues.push({
-            type: 'dead_spot',
-            componentId: comp.id,
-            severity: 'warning',
-            description: 'Fish tank has no air stone. Aquatic life requires oxygenation.',
+          c.connections.forEach((connId) => {
+            if (!ids.has(connId)) {
+              issues.push({
+                id: generateId(),
+                message: `Component ${c.id} connects to missing component ${connId}`,
+                severity: 'error',
+                componentId: c.id,
+              });
+            }
           });
-        }
-      }
+        });
 
-      // Valve should not be the only connection between pump and grow beds
-      if (comp.type === 'valve') {
-        const hasUpstreamPump = components.some(
-          (c) => c.type === 'pump' && c.connections.some((conn) => {
-            // Simple check: pump connects to something that connects to valve
-            const direct = conn.toId === comp.id;
-            const indirect = components.some((mid) => mid.id === conn.toId && mid.connections.some((m) => m.toId === comp.id));
-            return direct || indirect;
-          })
-        );
-        if (!hasUpstreamPump && comp.connections.length > 0) {
-          issues.push({
-            type: 'pressure_drop',
-            componentId: comp.id,
-            severity: 'warning',
-            description: 'Valve has no upstream pump. Gravity feed only — verify flow is sufficient.',
-          });
-        }
-      }
-    }
+        components.forEach((c) => {
+          const hasIncoming = components.some((other) =>
+            other.connections.includes(c.id)
+          );
+          if (
+            c.connections.length === 0 &&
+            !hasIncoming &&
+            components.length > 1
+          ) {
+            issues.push({
+              id: generateId(),
+              message: `Component ${c.id} is isolated`,
+              severity: 'warning',
+              componentId: c.id,
+            });
+          }
+        });
 
-    return issues;
-  },
-
-  loadComponents: (components) =>
-    set({
-      components: components.map(normaliseComponent),
-      selectedComponentId: null,
-      connectMode: { active: false, fromId: null, waypoints: [] },
-    }),
-
-  setTheme: (theme) => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(THEME_KEY, theme);
-    }
-    set({ theme });
-  },
-
-  startConnectMode: (fromId) =>
-    set({ connectMode: { active: true, fromId, waypoints: [] } }),
-
-  addConnectWaypoint: (point) =>
-    set((state) => ({
-      connectMode: {
-        ...state.connectMode,
-        waypoints: [...state.connectMode.waypoints, point],
+        return issues;
       },
-    })),
 
-  cancelConnectMode: () =>
-    set({ connectMode: { active: false, fromId: null, waypoints: [] } }),
+      undo: () =>
+        set((state) => {
+          if (state.historyIndex <= 0) return state;
+          const prevIndex = state.historyIndex - 1;
+          return {
+            components: JSON.parse(JSON.stringify(state.history[prevIndex])),
+            historyIndex: prevIndex,
+          };
+        }),
 
-  finishConnectMode: (toId) => {
-    const { connectMode, addConnection } = get();
-    if (!connectMode.active || !connectMode.fromId) return;
-    addConnection(connectMode.fromId, toId, connectMode.waypoints);
-    set({ connectMode: { active: false, fromId: null, waypoints: [] } });
-  },
-}));
+      redo: () =>
+        set((state) => {
+          if (state.historyIndex >= state.history.length - 1) return state;
+          const nextIndex = state.historyIndex + 1;
+          return {
+            components: JSON.parse(JSON.stringify(state.history[nextIndex])),
+            historyIndex: nextIndex,
+          };
+        }),
+
+      setTheme: (theme) => set({ theme }),
+    }),
+    { name: 'designer-store' }
+  )
+);
